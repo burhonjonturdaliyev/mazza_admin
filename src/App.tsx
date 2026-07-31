@@ -6,6 +6,7 @@ import {
   Users, WalletCards
 } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
+import { PropertiesBookings } from './components/PropertiesBookings'
 import { FinanceDirectory } from './components/FinanceDirectory'
 import './App.css'
 
@@ -88,6 +89,7 @@ const userName = (user: PlatformUser) => user.full_name || [user.first_name, use
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
 
 function Directory({view,query,token}:{view:View,query:string,token:string}) {
+  if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query}/>
   const isUsers = view === 'Foydalanuvchilar'
   const [rows, setRows] = useState<PlatformUser[]>([])
   const [loading, setLoading] = useState(false)
