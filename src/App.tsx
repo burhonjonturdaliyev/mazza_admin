@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   ArrowDownToLine, Bell, Building2, CalendarDays, ChevronDown, CircleDollarSign,
-  LayoutDashboard, MoreHorizontal, Search, Settings, ShieldCheck, TrendingUp,
+  Check, LayoutDashboard, LoaderCircle, MoreHorizontal, Search, Settings, ShieldCheck, TrendingUp,
   Users, WalletCards
 } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
+import { FinanceDirectory } from './components/FinanceDirectory'
 import './App.css'
 
 const chart = [
@@ -49,7 +50,7 @@ function App() {
     <main>
       <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><ChevronDown size={16}/></div></header>
       <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><button className="range">Oxirgi 30 kun <ChevronDown size={15}/></button></section>
-      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals} setWithdrawals={setWithdrawals}/> : <Directory view={view} query={query}/>} 
+      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals} setWithdrawals={setWithdrawals}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>} 
     </main>
   </div>
 }
@@ -69,7 +70,71 @@ function Dashboard({ data, setView, withdrawals, setWithdrawals }: {data:Record<
 }
 function Metric({icon,tone,label,value,suffix,delta}:{icon:React.ReactNode,tone:string,label:string,value:string,suffix:string,delta:string}) { return <article className="metric"><div className={`metric-icon ${tone}`}>{icon}</div><div><p>{label}</p><strong>{value} <small>{suffix}</small></strong><span><TrendingUp size={13}/> {delta} <em>o‘tgan oyga nisbatan</em></span></div></article> }
 function DataPanel({title,action,rows,columns}:{title:string,action:string,rows:string[][],columns:string[]}) {return <div className="panel data"><div className="panel-head"><div><h2>{title}</h2></div><button className="link">{action} →</button></div><div className="table"><div className="tr th">{columns.map(c=><span key={c}>{c}</span>)}</div>{rows.map(r=><div className="tr" key={r[0]}>{r.map((v,j)=><span key={j} className={j===r.length-1?'status':''}>{j===r.length-1?<i className={v==='Tasdiqlangan'||v==='success'?'ok':v==='waiting'?'wait':'review'}>{v==='success'?'Muvaffaqiyatli':v}</i>:v}</span>)}<button><MoreHorizontal size={18}/></button></div>)}</div></div>}
-function Directory({view,query}:{view:View,query:string}) { const rows = Array.from({length: 7},(_,i)=>({name:['Dilshod Islomov','Malika Karimova','Javohir Mirzayev','Saidbek Tursunov','Zebo Hospitality','Anhor Choyxonasi','Chorvoq Family'][i],sub:['+998 90 123 45 67','Agent · Toshkent','Mijoz · Faol','Agent arizasi','14 820 000 so‘m','Moderatsiyada','Bronlar: 28'][i]})).filter(r=>r.name.toLowerCase().includes(query.toLowerCase())); return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>Platformadagi barcha ma’lumotlarni boshqaring.</p></div><button className="primary">+ Yangi qo‘shish</button></div><div className="filter-row"><button>Hammasi <ChevronDown size={14}/></button><button>Oxirgi 30 kun <ChevronDown size={14}/></button><span>{rows.length} ta natija</span></div><div className="directory-list">{rows.map((r,i)=><div className="directory-row" key={r.name}><span className="person">{r.name.split(' ').map(x=>x[0]).join('')}</span><div><strong>{r.name}</strong><small>{r.sub}</small></div><span className={i===3||i===5?'pill pending':'pill'}>{i===3?'Kutilmoqda':i===5?'Tekshiruvda':'Faol'}</span><button><MoreHorizontal size={20}/></button></div>)}</div></section> }
+type PlatformUser = {
+  id: number | string; username?: string; first_name?: string; last_name?: string;
+  full_name?: string; phone?: string; email?: string; role?: string;
+  is_active?: boolean; agent_request_pending?: boolean; created_at?: string;
+}
+
+const API = 'https://mazzajoy.uz/api/v1/admin/platform/'
+const getRows = (payload: unknown): PlatformUser[] => {
+  if (Array.isArray(payload)) return payload as PlatformUser[]
+  if (!payload || typeof payload !== 'object') return []
+  const data = payload as Record<string, unknown>
+  for (const key of ['results', 'users', 'data', 'items']) if (Array.isArray(data[key])) return data[key] as PlatformUser[]
+  return []
+}
+const userName = (user: PlatformUser) => user.full_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || `User #${user.id}`
+const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
+
+function Directory({view,query,token}:{view:View,query:string,token:string}) {
+  const isUsers = view === 'Foydalanuvchilar'
+  const [rows, setRows] = useState<PlatformUser[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [actionId, setActionId] = useState<PlatformUser['id'] | null>(null)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    if (!isUsers && view !== 'Agentlar') return
+    const controller = new AbortController()
+    setLoading(true); setError(''); setMessage('')
+    const load = async (params: URLSearchParams) => {
+      const response = await fetch(`${API}?${params}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      const body = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(body?.detail || 'Ma’lumotlarni yuklab bo‘lmadi')
+      return getRows(body)
+    }
+    const params = new URLSearchParams({ section: 'users' })
+    if (!isUsers) params.set('role', 'agent')
+    const pendingParams = new URLSearchParams({ section: 'users' })
+    Promise.all(!isUsers ? [load(params), load(pendingParams)] : [load(params)])
+      .then(([agents, allUsers]) => {
+        if (!allUsers) return setRows(agents)
+        const pending = allUsers.filter(user => user.agent_request_pending)
+        setRows([...agents, ...pending.filter(user => !agents.some(agent => agent.id === user.id))])
+      })
+      .catch(reason => { if (reason.name !== 'AbortError') setError(reason.message || 'Tarmoq xatosi yuz berdi') })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => controller.abort()
+  }, [isUsers, token, view])
+
+  const filtered = rows.filter(user => `${userName(user)} ${user.username ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(query.toLowerCase()))
+  async function approve(user: PlatformUser) {
+    setActionId(user.id); setError(''); setMessage('')
+    try {
+      const response = await fetch(API, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve_agent', user_id: user.id }) })
+      const body = await response.json().catch(() => null)
+      if (!response.ok) throw new Error(body?.detail || 'Agentni tasdiqlab bo‘lmadi')
+      setRows(current => current.map(item => item.id === user.id ? { ...item, role: 'agent', agent_request_pending: false, is_active: true } : item))
+      setMessage(`${userName(user)} agent sifatida tasdiqlandi.`)
+    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Amal bajarilmadi') }
+    finally { setActionId(null) }
+  }
+
+  if (!isUsers && view !== 'Agentlar') return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>Bu bo‘lim hozir yuklanmoqda.</p></div></div></section>
+  return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>{isUsers ? 'Platformadagi foydalanuvchilar ro‘yxati.' : 'Agentlar va tasdiqlashni kutayotgan arizalar.'}</p></div></div><div className="filter-row"><button>{isUsers ? 'Barcha rollar' : 'Agentlar'} <ChevronDown size={14}/></button><span>{loading ? 'Yuklanmoqda...' : `${filtered.length} ta natija`}</span></div>{message && <div className="directory-notice success"><Check size={16}/>{message}</div>}{error && <div className="directory-notice error">{error}<button onClick={() => setError('')}>×</button></div>}<div className="directory-list">{loading ? <div className="directory-state"><LoaderCircle className="spin" size={24}/> Ma’lumotlar yuklanmoqda...</div> : filtered.length === 0 ? <div className="directory-state">{query ? 'Qidiruv bo‘yicha ma’lumot topilmadi.' : 'Hozircha ma’lumot mavjud emas.'}</div> : filtered.map(user => { const name = userName(user); const pending = Boolean(user.agent_request_pending); const isAgent = user.role === 'agent'; return <div className="directory-row" key={user.id}><span className="person">{initials(name)}</span><div><strong>{name}</strong><small>{user.phone || user.email || user.username || 'Kontakt kiritilmagan'} · {user.role || 'client'}</small></div><span className={pending ? 'pill pending' : user.is_active === false ? 'pill muted' : 'pill'}>{pending ? 'Ariza kutilmoqda' : user.is_active === false ? 'Nofaol' : isAgent ? 'Agent' : 'Faol'}</span>{!isUsers && pending ? <button className="approve" disabled={actionId === user.id} onClick={() => approve(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : <Check size={15}/>} Tasdiqlash</button> : <button className="row-menu" aria-label={`${name} menyusi`}><MoreHorizontal size={20}/></button>}</div> })}</div></section>
+}
 export default App
 
 function Login({onSuccess}:{onSuccess:(token:string)=>void}) {
