@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AlertCircle, Check, ChevronDown, CircleDollarSign, CreditCard, LoaderCircle, RefreshCw, WalletCards, X, XCircle } from 'lucide-react'
+import { adminFetch } from '../auth'
 
 const API = 'https://mazzajoy.uz/api/v1/admin/platform/'
 
@@ -31,9 +32,9 @@ export function FinanceDirectory({ view, token, query, onPendingChange }: { view
   const [notice, setNotice] = useState('')
 
   const request = useCallback(async (section: string, init?: RequestInit) => {
-    const response = await fetch(`${API}?section=${section}`, {
+    const response = await adminFetch(`${API}?section=${section}`, {
       ...init,
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     })
     const body = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(body.detail || 'Serverdan ma’lumot olib bo‘lmadi')
@@ -68,7 +69,7 @@ export function FinanceDirectory({ view, token, query, onPendingChange }: { view
     if (note === null) return
     setBusyId(row.id); setNotice('')
     try {
-      const response = await fetch(`${API}?action=review_withdrawal`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ withdrawal_id: row.id, status: nextStatus, note }) })
+      const response = await adminFetch(`${API}?action=review_withdrawal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdrawal_id: row.id, status: nextStatus, note }) })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || 'So‘rov yangilanmadi')
       setNotice(`So‘rov ${nextStatus === 'rejected' ? 'rad etildi' : nextStatus === 'paid' ? 'to‘landi deb belgilandi' : 'tasdiqlandi'}.`)

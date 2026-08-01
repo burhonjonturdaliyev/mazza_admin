@@ -9,6 +9,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { PropertiesBookings } from './components/PropertiesBookings'
 import { FinanceDirectory } from './components/FinanceDirectory'
 import { Catalog } from './components/Catalog'
+import { adminFetch } from './auth'
 import './App.css'
 
 
@@ -25,7 +26,12 @@ function App() {
   const [query, setQuery] = useState('')
   const [withdrawals, setWithdrawals] = useState(12)
   const title = useMemo(() => view === 'Dashboard' ? 'Xush kelibsiz, Burhonjon' : view, [view])
-  useEffect(() => { if (!token) return; fetch('https://mazzajoy.uz/api/v1/admin/platform/?section=dashboard', {headers:{Authorization:`Bearer ${token}`}}).then(r=>r.ok?r.json():Promise.reject()).then(setDashboard).catch(()=>setDashboard(null)) }, [token])
+  useEffect(() => {
+    const expired = () => setToken('')
+    window.addEventListener('mazza-admin-session-expired', expired)
+    return () => window.removeEventListener('mazza-admin-session-expired', expired)
+  }, [])
+  useEffect(() => { if (!token) return; adminFetch('https://mazzajoy.uz/api/v1/admin/platform/?section=dashboard').then(r=>r.ok?r.json():Promise.reject()).then(setDashboard).catch(()=>setDashboard(null)) }, [token])
   if (!token) return <Login onSuccess={setToken}/>
   return <div className="app-shell">
     <aside className="sidebar">
@@ -37,7 +43,7 @@ function App() {
     <main>
       <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><ChevronDown size={16}/></div></header>
       <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><button className="range">Oxirgi 30 kun <ChevronDown size={15}/></button></section>
-      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog token={token}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>}
+      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>}
     </main>
   </div>
 }
@@ -99,7 +105,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
     const controller = new AbortController()
     setLoading(true); setError(''); setMessage('')
     const load = async (params: URLSearchParams) => {
-      const response = await fetch(`${API}?${params}`, { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal })
+      const response = await adminFetch(`${API}?${params}`, { signal: controller.signal })
       const body = await response.json().catch(() => null)
       if (!response.ok) throw new Error(body?.detail || 'Ma’lumotlarni yuklab bo‘lmadi')
       return getRows(body)
@@ -122,7 +128,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
   async function approve(user: PlatformUser) {
     setActionId(user.id); setError(''); setMessage('')
     try {
-      const response = await fetch(API, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve_agent', user_id: user.id }) })
+      const response = await adminFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'approve_agent', user_id: user.id }) })
       const body = await response.json().catch(() => null)
       if (!response.ok) throw new Error(body?.detail || 'Agentni tasdiqlab bo‘lmadi')
       setRows(current => current.map(item => item.id === user.id ? { ...item, role: 'agent', agent_request_pending: false, is_active: true } : item))
@@ -135,7 +141,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
     if (!window.confirm(`${userName(user)} foydalanuvchisini ${is_active ? 'blokdan chiqarish' : 'bloklash'}ni tasdiqlaysizmi?`)) return
     setActionId(user.id); setError('')
     try {
-      const response = await fetch(API, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set_user_status', user_id: user.id, is_active }) })
+      const response = await adminFetch(API, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'set_user_status', user_id: user.id, is_active }) })
       const body = await response.json().catch(() => null)
       if (!response.ok) throw new Error(body?.detail || 'Foydalanuvchi holati yangilanmadi')
       setRows(current => current.map(item => item.id === user.id ? { ...item, is_active } : item))
@@ -151,6 +157,6 @@ export default App
 
 function Login({onSuccess}:{onSuccess:(token:string)=>void}) {
   const [username,setUsername]=useState(''),[password,setPassword]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false)
-  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{const r=await fetch('https://mazzajoy.uz/api/v1/admin/login/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});const d=await r.json();if(!r.ok)throw Error(d.detail);localStorage.setItem('mazza_admin_token',d.access);onSuccess(d.access)}catch(e){setError(e instanceof Error?e.message:'Kirish amalga oshmadi')}finally{setBusy(false)}}
+  async function submit(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{const r=await fetch('https://mazzajoy.uz/api/v1/admin/login/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});const d=await r.json();if(!r.ok)throw Error(d.detail);localStorage.setItem('mazza_admin_token',d.access);localStorage.setItem('mazza_admin_refresh',d.refresh);onSuccess(d.access)}catch(e){setError(e instanceof Error?e.message:'Kirish amalga oshmadi')}finally{setBusy(false)}}
   return <div className="login"><form onSubmit={submit}><div className="brand"><span className="brand-mark">M</span>Mazza<span className="brand-dot">.</span></div><p className="eyebrow">XAVFSIZ BOSHQARUV PORTALI</p><h1>Admin panelga kiring</h1><p>Platforma operatsiyalarini boshqarish uchun ma’lumotlaringizni kiriting.</p><label>Login<input value={username} onChange={e=>setUsername(e.target.value)} autoComplete="username" required/></label><label>Parol<input value={password} onChange={e=>setPassword(e.target.value)} type="password" autoComplete="current-password" required/></label>{error&&<small className="login-error">{error}</small>}<button className="primary" disabled={busy}>{busy?'Tekshirilmoqda...':'Xavfsiz kirish'}</button></form></div>
 }
