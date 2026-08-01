@@ -8,6 +8,7 @@ import {
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { PropertiesBookings } from './components/PropertiesBookings'
 import { FinanceDirectory } from './components/FinanceDirectory'
+import { Catalog } from './components/Catalog'
 import './App.css'
 
 const chart = [
@@ -26,7 +27,7 @@ const bookings = [
   ['Grand Atlas Hotel', 'Abror S.', '03 Aug — 05 Aug', 'Tasdiqlangan'],
 ]
 
-type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Agent arizalari' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish'
+type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Agent arizalari' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish' | 'Sozlamalar'
 const nav: [View, typeof LayoutDashboard][] = [
   ['Dashboard', LayoutDashboard], ['Foydalanuvchilar', Users], ['Agentlar', ShieldCheck], ['Agent arizalari', ShieldCheck],
   ['Mulklar', Building2], ['Bronlar', CalendarDays], ['Tranzaksiyalar', WalletCards], ['Pul yechish', ArrowDownToLine],
@@ -46,12 +47,12 @@ function App() {
       <div className="brand"><span className="brand-mark">M</span><span>Mazza<span className="brand-dot">.</span></span></div>
       <div className="workspace"><span className="workspace-dot"/> MAZZA PLATFORM <ChevronDown size={14}/></div>
       <nav>{nav.map(([label, Icon]) => <button key={label} className={view === label ? 'nav active' : 'nav'} onClick={() => setView(label)}><Icon size={19}/><span>{label}</span>{label === 'Pul yechish' && withdrawals > 0 && <b>{withdrawals}</b>}</button>)}</nav>
-      <div className="sidebar-bottom"><button className="nav"><Settings size={19}/><span>Sozlamalar</span></button><div className="support"><span>?</span><div><strong>Yordam kerakmi?</strong><small>Qo‘llab-quvvatlash markazi</small></div></div></div>
+      <div className="sidebar-bottom"><button className={view === 'Sozlamalar' ? 'nav active' : 'nav'} onClick={()=>setView('Sozlamalar')}><Settings size={19}/><span>Sozlamalar</span></button><div className="support"><span>?</span><div><strong>Yordam kerakmi?</strong><small>Qo‘llab-quvvatlash markazi</small></div></div></div>
     </aside>
     <main>
       <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><ChevronDown size={16}/></div></header>
       <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><button className="range">Oxirgi 30 kun <ChevronDown size={15}/></button></section>
-      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals} setWithdrawals={setWithdrawals}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>} 
+      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals} setWithdrawals={setWithdrawals}/> : view === 'Sozlamalar' ? <Catalog token={token}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>} 
     </main>
   </div>
 }
