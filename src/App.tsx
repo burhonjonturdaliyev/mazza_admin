@@ -11,21 +11,6 @@ import { FinanceDirectory } from './components/FinanceDirectory'
 import { Catalog } from './components/Catalog'
 import './App.css'
 
-const chart = [
-  { day: 'Du', value: 14 }, { day: 'Se', value: 26 }, { day: 'Ch', value: 19 },
-  { day: 'Pa', value: 42 }, { day: 'Ju', value: 31 }, { day: 'Sh', value: 58 }, { day: 'Ya', value: 46 },
-]
-const transactions = [
-  ['#TRX-24081', 'Click to‘lovi', 'Shahzod Karimov', '+ 285 000 so‘m', 'success'],
-  ['#TRX-24080', 'Pul yechish', 'Diyorbek Aliyev', '− 1 200 000 so‘m', 'waiting'],
-  ['#TRX-24079', 'Bron komissiyasi', 'Chorvoq Family Dacha', '+ 75 000 so‘m', 'success'],
-  ['#TRX-24078', 'Pul yechish', 'Zebo Hospitality', '− 540 000 so‘m', 'review'],
-]
-const bookings = [
-  ['Anhor Choyxonasi', 'Murodjon E.', 'Bugun, 19:00', 'Tasdiqlangan'],
-  ['Chorvoq Family Dacha', 'Madina R.', '02 Aug — 04 Aug', 'Kutilmoqda'],
-  ['Grand Atlas Hotel', 'Abror S.', '03 Aug — 05 Aug', 'Tasdiqlangan'],
-]
 
 type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Agent arizalari' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish' | 'Sozlamalar'
 const nav: [View, typeof LayoutDashboard][] = [
@@ -52,23 +37,33 @@ function App() {
     <main>
       <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><ChevronDown size={16}/></div></header>
       <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><button className="range">Oxirgi 30 kun <ChevronDown size={15}/></button></section>
-      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals} setWithdrawals={setWithdrawals}/> : view === 'Sozlamalar' ? <Catalog token={token}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>} 
+      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog token={token}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>}
     </main>
   </div>
 }
 
-function Dashboard({ data, setView, withdrawals, setWithdrawals }: {data:Record<string, any>|null,setView:(v:View)=>void, withdrawals:number, setWithdrawals:(n:number)=>void}) {
+function Dashboard({ data, setView, withdrawals }: {data:Record<string, any>|null,setView:(v:View)=>void, withdrawals:number}) {
   const metrics = data?.metrics
+  const money = (value: unknown) => new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(Number(value ?? 0))
+  const activity = (data?.recent_transactions ?? []).slice(0, 7).reverse().map((item: Record<string, any>) => ({
+    day: item.created_at ? new Intl.DateTimeFormat('uz-UZ', { weekday: 'short' }).format(new Date(item.created_at)) : '—', value: Number(item.amount ?? 0),
+  }))
+  const transactionRows = (data?.recent_transactions ?? []).slice(0, 4).map((item: Record<string, any>) => [
+    `#TRX-${item.id}`, item.kind?.replaceAll('_', ' ') || 'Tranzaksiya', item.user__first_name || item.user__phone || '—', `${item.direction === 'debit' ? '−' : '+'} ${money(item.amount)} so‘m`, item.direction === 'debit' ? 'Chiqim' : 'Kirim',
+  ])
+  const bookingRows = (data?.recent_bookings ?? []).slice(0, 4).map((item: Record<string, any>) => [
+    item.item__property__name || 'Mulk ko‘rsatilmagan', item.user__phone || '—', `${item.date_access || '—'} — ${item.date_exit || '—'}`, item.status || 'Noma’lum',
+  ])
   return <><section className="metrics">
     <Metric icon={<CircleDollarSign/>} tone="violet" label="Platforma daromadi" value={metrics?.revenue ?? '—'} suffix="so‘m" delta="30 kun"/>
     <Metric icon={<CalendarDays/>} tone="blue" label="Yangi bronlar" value={metrics?.bookings?.toString() ?? '—'} suffix="ta" delta="30 kun"/>
     <Metric icon={<Users/>} tone="orange" label="Faol foydalanuvchilar" value={metrics?.active_users?.toString() ?? '—'} suffix="ta" delta="jonli"/>
     <Metric icon={<Building2/>} tone="green" label="Faol mulklar" value={metrics?.properties?.toString() ?? '—'} suffix="ta" delta="jonli"/>
   </section>
-  <section className="grid-two"><div className="panel revenue"><div className="panel-head"><div><h2>Daromadlar tahlili</h2><p>Komissiya va platforma tushumlari</p></div><button className="link">Hisobotni ko‘rish →</button></div><div className="chart-stat"><strong>48 750 000 <small>so‘m</small></strong><span><TrendingUp size={15}/> 18.4%</span></div><div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chart}><defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#7257f5" stopOpacity=".32"/><stop offset="100%" stopColor="#7257f5" stopOpacity="0"/></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false}/><Tooltip/><Area type="monotone" dataKey="value" stroke="#7257f5" strokeWidth={3} fill="url(#fill)"/></AreaChart></ResponsiveContainer></div></div>
+  <section className="grid-two"><div className="panel revenue"><div className="panel-head"><div><h2>Daromadlar tahlili</h2><p>Oxirgi to‘lovlardagi real tushumlar</p></div><button className="link" onClick={()=>setView('Tranzaksiyalar')}>Hisobotni ko‘rish →</button></div><div className="chart-stat"><strong>{money(metrics?.revenue)} <small>so‘m</small></strong><span><TrendingUp size={15}/> Oxirgi 30 kun</span></div><div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={activity}><defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#7257f5" stopOpacity=".32"/><stop offset="100%" stopColor="#7257f5" stopOpacity="0"/></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false}/><Tooltip/><Area type="monotone" dataKey="value" stroke="#7257f5" strokeWidth={3} fill="url(#fill)"/></AreaChart></ResponsiveContainer></div></div>
   <div className="panel attention"><div className="panel-head"><div><h2>Diqqat talab qiladi</h2><p>Tezkor boshqaruv markazi</p></div></div><button className="attention-row" onClick={()=>setView('Pul yechish')}><span className="bubble amber"><ArrowDownToLine size={18}/></span><div><strong>{data?.pending?.withdrawals ?? withdrawals} ta pul yechish so‘rovi</strong><small>Tekshiruv va tasdiqlashni kutmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Agent arizalari')}><span className="bubble blue"><ShieldCheck size={18}/></span><div><strong>{data?.pending?.agent_requests ?? 0} ta agent arizasi</strong><small>Tekshiruv va tasdiqlashni kutmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Mulklar')}><span className="bubble pink"><Building2 size={18}/></span><div><strong>{data?.pending?.inactive_properties ?? 0} ta mulk</strong><small>Moderatsiya navbatida</small></div><b>Ko‘rish →</b></button></div></section>
-  <section className="grid-two lower"><DataPanel title="Oxirgi tranzaksiyalar" action="Barchasi" rows={transactions} columns={['ID', 'Turi', 'Mijoz / Mulk', 'Summa', 'Holat']}/><DataPanel title="Yangi bronlar" action="Kalendar" rows={bookings} columns={['Mulk', 'Mijoz', 'Sana', 'Holat']}/></section>
-  <section className="panel withdraw"><div><p className="eyebrow">MOLIYAVIY NAZORAT</p><h2>Pul yechish so‘rovlarini tasdiqlang</h2><p>{withdrawals} ta so‘rov ko‘rib chiqishni kutmoqda.</p></div><div><strong>18 420 000 so‘m</strong><button onClick={()=>{setWithdrawals(0); setView('Pul yechish')}}>So‘rovlarni ko‘rish</button></div></section></>
+  <section className="grid-two lower"><DataPanel title="Oxirgi tranzaksiyalar" action="Barchasi" rows={transactionRows} columns={['ID', 'Turi', 'Foydalanuvchi', 'Summa', 'Holat']}/><DataPanel title="Yangi bronlar" action="Kalendar" rows={bookingRows} columns={['Mulk', 'Mijoz', 'Sana', 'Holat']}/></section>
+  <section className="panel withdraw"><div><p className="eyebrow">MOLIYAVIY NAZORAT</p><h2>Pul yechish so‘rovlarini tasdiqlang</h2><p>{data?.pending?.withdrawals ?? withdrawals} ta so‘rov ko‘rib chiqishni kutmoqda.</p></div><div><strong>{data?.pending?.withdrawals ?? withdrawals} ta</strong><button onClick={()=>setView('Pul yechish')}>So‘rovlarni ko‘rish</button></div></section></>
 }
 function Metric({icon,tone,label,value,suffix,delta}:{icon:React.ReactNode,tone:string,label:string,value:string,suffix:string,delta:string}) { return <article className="metric"><div className={`metric-icon ${tone}`}>{icon}</div><div><p>{label}</p><strong>{value} <small>{suffix}</small></strong><span><TrendingUp size={13}/> {delta} <em>o‘tgan oyga nisbatan</em></span></div></article> }
 function DataPanel({title,action,rows,columns}:{title:string,action:string,rows:string[][],columns:string[]}) {return <div className="panel data"><div className="panel-head"><div><h2>{title}</h2></div><button className="link">{action} →</button></div><div className="table"><div className="tr th">{columns.map(c=><span key={c}>{c}</span>)}</div>{rows.map(r=><div className="tr" key={r[0]}>{r.map((v,j)=><span key={j} className={j===r.length-1?'status':''}>{j===r.length-1?<i className={v==='Tasdiqlangan'||v==='success'?'ok':v==='waiting'?'wait':'review'}>{v==='success'?'Muvaffaqiyatli':v}</i>:v}</span>)}<button><MoreHorizontal size={18}/></button></div>)}</div></div>}
