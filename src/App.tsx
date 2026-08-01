@@ -26,9 +26,9 @@ const bookings = [
   ['Grand Atlas Hotel', 'Abror S.', '03 Aug — 05 Aug', 'Tasdiqlangan'],
 ]
 
-type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish'
+type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Agent arizalari' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish'
 const nav: [View, typeof LayoutDashboard][] = [
-  ['Dashboard', LayoutDashboard], ['Foydalanuvchilar', Users], ['Agentlar', ShieldCheck],
+  ['Dashboard', LayoutDashboard], ['Foydalanuvchilar', Users], ['Agentlar', ShieldCheck], ['Agent arizalari', ShieldCheck],
   ['Mulklar', Building2], ['Bronlar', CalendarDays], ['Tranzaksiyalar', WalletCards], ['Pul yechish', ArrowDownToLine],
 ]
 
@@ -65,7 +65,7 @@ function Dashboard({ data, setView, withdrawals, setWithdrawals }: {data:Record<
     <Metric icon={<Building2/>} tone="green" label="Faol mulklar" value={metrics?.properties?.toString() ?? '—'} suffix="ta" delta="jonli"/>
   </section>
   <section className="grid-two"><div className="panel revenue"><div className="panel-head"><div><h2>Daromadlar tahlili</h2><p>Komissiya va platforma tushumlari</p></div><button className="link">Hisobotni ko‘rish →</button></div><div className="chart-stat"><strong>48 750 000 <small>so‘m</small></strong><span><TrendingUp size={15}/> 18.4%</span></div><div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chart}><defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#7257f5" stopOpacity=".32"/><stop offset="100%" stopColor="#7257f5" stopOpacity="0"/></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false}/><Tooltip/><Area type="monotone" dataKey="value" stroke="#7257f5" strokeWidth={3} fill="url(#fill)"/></AreaChart></ResponsiveContainer></div></div>
-  <div className="panel attention"><div className="panel-head"><div><h2>Diqqat talab qiladi</h2><p>Tezkor boshqaruv markazi</p></div></div><button className="attention-row" onClick={()=>setView('Pul yechish')}><span className="bubble amber"><ArrowDownToLine size={18}/></span><div><strong>{withdrawals} ta pul yechish so‘rovi</strong><small>Jami 18 420 000 so‘m kutilmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Agentlar')}><span className="bubble blue"><ShieldCheck size={18}/></span><div><strong>7 ta agent arizasi</strong><small>Tekshiruv va tasdiqlashni kutmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Mulklar')}><span className="bubble pink"><Building2 size={18}/></span><div><strong>4 ta yangi mulk</strong><small>Moderatsiya navbatida</small></div><b>Ko‘rish →</b></button></div></section>
+  <div className="panel attention"><div className="panel-head"><div><h2>Diqqat talab qiladi</h2><p>Tezkor boshqaruv markazi</p></div></div><button className="attention-row" onClick={()=>setView('Pul yechish')}><span className="bubble amber"><ArrowDownToLine size={18}/></span><div><strong>{data?.pending?.withdrawals ?? withdrawals} ta pul yechish so‘rovi</strong><small>Tekshiruv va tasdiqlashni kutmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Agent arizalari')}><span className="bubble blue"><ShieldCheck size={18}/></span><div><strong>{data?.pending?.agent_requests ?? 0} ta agent arizasi</strong><small>Tekshiruv va tasdiqlashni kutmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Mulklar')}><span className="bubble pink"><Building2 size={18}/></span><div><strong>{data?.pending?.inactive_properties ?? 0} ta mulk</strong><small>Moderatsiya navbatida</small></div><b>Ko‘rish →</b></button></div></section>
   <section className="grid-two lower"><DataPanel title="Oxirgi tranzaksiyalar" action="Barchasi" rows={transactions} columns={['ID', 'Turi', 'Mijoz / Mulk', 'Summa', 'Holat']}/><DataPanel title="Yangi bronlar" action="Kalendar" rows={bookings} columns={['Mulk', 'Mijoz', 'Sana', 'Holat']}/></section>
   <section className="panel withdraw"><div><p className="eyebrow">MOLIYAVIY NAZORAT</p><h2>Pul yechish so‘rovlarini tasdiqlang</h2><p>{withdrawals} ta so‘rov ko‘rib chiqishni kutmoqda.</p></div><div><strong>18 420 000 so‘m</strong><button onClick={()=>{setWithdrawals(0); setView('Pul yechish')}}>So‘rovlarni ko‘rish</button></div></section></>
 }
@@ -91,6 +91,7 @@ const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(part => par
 function Directory({view,query,token}:{view:View,query:string,token:string}) {
   if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query}/>
   const isUsers = view === 'Foydalanuvchilar'
+  const isRequests = view === 'Agent arizalari'
   const [rows, setRows] = useState<PlatformUser[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -98,7 +99,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    if (!isUsers && view !== 'Agentlar') return
+    if (!isUsers && view !== 'Agentlar' && !isRequests) return
     const controller = new AbortController()
     setLoading(true); setError(''); setMessage('')
     const load = async (params: URLSearchParams) => {
@@ -108,9 +109,9 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
       return getRows(body)
     }
     const params = new URLSearchParams({ section: 'users' })
-    if (!isUsers) params.set('role', 'agent')
+    if (view === 'Agentlar') params.set('role', 'agent')
     const pendingParams = new URLSearchParams({ section: 'users' })
-    Promise.all(!isUsers ? [load(params), load(pendingParams)] : [load(params)])
+    Promise.all(view === 'Agentlar' ? [load(params), load(pendingParams)] : [load(params)])
       .then(([agents, allUsers]) => {
         if (!allUsers) return setRows(agents)
         const pending = allUsers.filter(user => user.agent_request_pending)
@@ -121,7 +122,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
     return () => controller.abort()
   }, [isUsers, token, view])
 
-  const filtered = rows.filter(user => `${userName(user)} ${user.username ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(query.toLowerCase()))
+  const filtered = rows.filter(user => (!isRequests || user.agent_request_pending) && `${userName(user)} ${user.username ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(query.toLowerCase()))
   async function approve(user: PlatformUser) {
     setActionId(user.id); setError(''); setMessage('')
     try {
@@ -147,7 +148,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
     finally { setActionId(null) }
   }
 
-  if (!isUsers && view !== 'Agentlar') return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>Bu bo‘lim hozir yuklanmoqda.</p></div></div></section>
+  if (!isUsers && view !== 'Agentlar' && !isRequests) return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>Bu bo‘lim hozir yuklanmoqda.</p></div></div></section>
   return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>{isUsers ? 'Platformadagi foydalanuvchilar ro‘yxati.' : 'Agentlar va tasdiqlashni kutayotgan arizalar.'}</p></div></div><div className="filter-row"><button>{isUsers ? 'Barcha rollar' : 'Agentlar'} <ChevronDown size={14}/></button><span>{loading ? 'Yuklanmoqda...' : `${filtered.length} ta natija`}</span></div>{message && <div className="directory-notice success"><Check size={16}/>{message}</div>}{error && <div className="directory-notice error">{error}<button onClick={() => setError('')}>×</button></div>}<div className="directory-list">{loading ? <div className="directory-state"><LoaderCircle className="spin" size={24}/> Ma’lumotlar yuklanmoqda...</div> : filtered.length === 0 ? <div className="directory-state">{query ? 'Qidiruv bo‘yicha ma’lumot topilmadi.' : 'Hozircha ma’lumot mavjud emas.'}</div> : filtered.map(user => { const name = userName(user); const pending = Boolean(user.agent_request_pending); const isAgent = user.role === 'agent'; return <div className="directory-row" key={user.id}><span className="person">{initials(name)}</span><div><strong>{name}</strong><small>{user.phone || user.email || user.username || 'Kontakt kiritilmagan'} · {user.role || 'client'}</small></div><span className={pending ? 'pill pending' : user.is_active === false ? 'pill muted' : 'pill'}>{pending ? 'Ariza kutilmoqda' : user.is_active === false ? 'Nofaol' : isAgent ? 'Agent' : 'Faol'}</span>{!isUsers && pending ? <button className="approve" disabled={actionId === user.id} onClick={() => approve(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : <Check size={15}/>} Tasdiqlash</button> : <button className={user.is_active === false ? 'approve' : 'row-menu'} disabled={actionId === user.id} onClick={() => void changeUserStatus(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : user.is_active === false ? 'Blokdan chiqarish' : 'Bloklash'}</button>}</div> })}</div></section>
 }
 export default App
