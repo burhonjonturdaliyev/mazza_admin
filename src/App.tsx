@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import {
   ArrowDownToLine, Bell, Building2, CalendarDays, ChevronDown, CircleDollarSign,
   Check, LayoutDashboard, LoaderCircle, MoreHorizontal, Search, Settings, ShieldCheck, TrendingUp,
-  Users, WalletCards
+  Users, WalletCards, LogOut
 } from 'lucide-react'
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { PropertiesBookings } from './components/PropertiesBookings'
@@ -27,6 +27,12 @@ function App() {
   const [query, setQuery] = useState('')
   const [withdrawals, setWithdrawals] = useState(12)
   const title = useMemo(() => view === 'Dashboard' ? 'Xush kelibsiz, Burhonjon' : view, [view])
+  const logout = () => {
+    localStorage.removeItem('mazza_admin_token')
+    localStorage.removeItem('mazza_admin_refresh')
+    setDashboard(null)
+    setToken('')
+  }
   useEffect(() => {
     const expired = () => setToken('')
     window.addEventListener('mazza-admin-session-expired', expired)
@@ -42,7 +48,7 @@ function App() {
       <div className="sidebar-bottom"><button className={view === 'Sozlamalar' ? 'nav active' : 'nav'} onClick={()=>setView('Sozlamalar')}><Settings size={19}/><span>Sozlamalar</span></button><div className="support"><span>?</span><div><strong>Yordam kerakmi?</strong><small>Qo‘llab-quvvatlash markazi</small></div></div></div>
     </aside>
     <main>
-      <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><ChevronDown size={16}/></div></header>
+      <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><button className="logout-button" onClick={logout} title="Admin paneldan chiqish"><LogOut size={17}/><span>Chiqish</span></button></div></header>
       <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><button className="range">Oxirgi 30 kun <ChevronDown size={15}/></button></section>
       {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Bildirishnomalar' ? <Notifications query={query}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>}
     </main>
