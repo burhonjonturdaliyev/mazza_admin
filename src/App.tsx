@@ -9,14 +9,15 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from 'recharts'
 import { PropertiesBookings } from './components/PropertiesBookings'
 import { FinanceDirectory } from './components/FinanceDirectory'
 import { Catalog } from './components/Catalog'
+import { Notifications } from './components/Notifications'
 import { adminFetch } from './auth'
 import './App.css'
 
 
-type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Agent arizalari' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish' | 'Sozlamalar'
+type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Agent arizalari' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish' | 'Bildirishnomalar' | 'Sozlamalar'
 const nav: [View, typeof LayoutDashboard][] = [
   ['Dashboard', LayoutDashboard], ['Foydalanuvchilar', Users], ['Agentlar', ShieldCheck], ['Agent arizalari', ShieldCheck],
-  ['Mulklar', Building2], ['Bronlar', CalendarDays], ['Tranzaksiyalar', WalletCards], ['Pul yechish', ArrowDownToLine],
+  ['Mulklar', Building2], ['Bronlar', CalendarDays], ['Bildirishnomalar', Bell], ['Tranzaksiyalar', WalletCards], ['Pul yechish', ArrowDownToLine],
 ]
 
 function App() {
@@ -43,7 +44,7 @@ function App() {
     <main>
       <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><ChevronDown size={16}/></div></header>
       <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><button className="range">Oxirgi 30 kun <ChevronDown size={15}/></button></section>
-      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>}
+      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Bildirishnomalar' ? <Notifications query={query}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>}
     </main>
   </div>
 }
