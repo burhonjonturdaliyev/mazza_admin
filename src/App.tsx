@@ -25,7 +25,7 @@ function App() {
   const [dashboard, setDashboard] = useState<Record<string, any> | null>(null)
   const [view, setView] = useState<View>('Dashboard')
   const [query, setQuery] = useState('')
-  const [withdrawals, setWithdrawals] = useState(12)
+  const [withdrawals, setWithdrawals] = useState(0)
   const title = useMemo(() => view === 'Dashboard' ? 'Xush kelibsiz, Burhonjon' : view, [view])
   const logout = () => {
     localStorage.removeItem('mazza_admin_token')
@@ -38,7 +38,19 @@ function App() {
     window.addEventListener('mazza-admin-session-expired', expired)
     return () => window.removeEventListener('mazza-admin-session-expired', expired)
   }, [])
-  useEffect(() => { if (!token) return; adminFetch('https://mazzajoy.uz/api/v1/admin/platform/?section=dashboard').then(r=>r.ok?r.json():Promise.reject()).then(setDashboard).catch(()=>setDashboard(null)) }, [token])
+  useEffect(() => {
+    if (!token) return
+    adminFetch('https://mazzajoy.uz/api/v1/admin/platform/?section=dashboard')
+      .then(response => response.ok ? response.json() : Promise.reject())
+      .then(data => {
+        setDashboard(data)
+        setWithdrawals(Number(data?.pending?.withdrawals ?? 0))
+      })
+      .catch(() => {
+        setDashboard(null)
+        setWithdrawals(0)
+      })
+  }, [token])
   if (!token) return <Login onSuccess={setToken}/>
   return <div className="app-shell">
     <aside className="sidebar">
