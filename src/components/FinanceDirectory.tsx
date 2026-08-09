@@ -69,7 +69,16 @@ export function FinanceDirectory({ view, token, query, onPendingChange }: { view
     if (note === null) return
     setBusyId(row.id); setNotice('')
     try {
-      const response = await adminFetch(`${API}?action=review_withdrawal`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ withdrawal_id: row.id, status: nextStatus, note }) })
+      const response = await adminFetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'review_withdrawal',
+          withdrawal_id: row.id,
+          status: nextStatus,
+          note,
+        }),
+      })
       const data = await response.json().catch(() => ({}))
       if (!response.ok) throw new Error(data.detail || 'So‘rov yangilanmadi')
       setNotice(`So‘rov ${nextStatus === 'rejected' ? 'rad etildi' : nextStatus === 'paid' ? 'to‘landi deb belgilandi' : 'tasdiqlandi'}.`)
