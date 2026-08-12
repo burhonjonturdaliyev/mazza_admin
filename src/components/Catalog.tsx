@@ -12,7 +12,22 @@ export function Catalog() {
   useEffect(()=>{void load()},[])
   const add=async(entity:string)=>{const name=window.prompt('Nomi:');if(!name)return;setBusy(entity);try{const r=await adminFetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'catalog_create',entity,name})});if(!r.ok)throw Error((await r.json()).detail);await load()}catch(e){setError(e instanceof Error?e.message:'Saqlanmadi')}finally{setBusy('')}}
   const remove=async(entity:string,id:number)=>{if(!confirm('O‘chirishni tasdiqlaysizmi?'))return;setBusy(`${entity}${id}`);try{const r=await adminFetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'catalog_delete',entity,id})});if(!r.ok)throw Error((await r.json()).detail);await load()}catch(e){setError(e instanceof Error?e.message:'O‘chirilmadi')}finally{setBusy('')}}
-  const configureMinimumPayment=async(category:Category)=>{const mode=window.prompt('To‘lov turi: percent yoki fixed',category.minimum_payment_mode||'percent');if(mode===null)return;if(mode!=='percent'&&mode!=='fixed'){setError('Faqat percent yoki fixed tanlang.');return}const value=window.prompt(mode==='percent'?'Bron narxidan foizni kiriting:':'Minimal to‘lov summasini (so‘m) kiriting:',String(category.minimum_payment_value||''));if(value===null||!value.trim())return;setBusy(`payment${category.id}`);try{const r=await adminFetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update_category_payment_rule',category_id:category.id,minimum_payment_mode:mode,minimum_payment_value:value})});if(!r.ok)throw Error((await r.json()).detail);await load()}catch(e){setError(e instanceof Error?e.message:'Minimal to‘lov yangilanmadi')}finally{setBusy('')}}
+  const configureMinimumPayment=async(category:Category)=>{
+    const current=category.minimum_payment_mode==='fixed'?`${category.minimum_payment_value||0} so‘m`:`${category.minimum_payment_value||0}%`
+    const input=window.prompt('Oldindan to‘lovni kiriting.\n\n50 yoki 50% — bron narxidan 50%\n50 000 so‘m — qat’iy minimal summa',current)
+    if(input===null||!input.trim())return
+    const raw=input.trim().toLowerCase()
+    const isFixed=/so['‘`]?m|uzs|fixed/.test(raw)
+    const value=raw.replace(/[^0-9.,]/g,'').replace(',','.')
+    const number=Number(value)
+    const mode: 'fixed' | 'percent'=isFixed?'fixed':'percent'
+    if(!Number.isFinite(number)||number<0||(mode==='percent'&&number>100)){
+      setError(mode==='percent'?'Foiz 0 dan 100 gacha bo‘lishi kerak.':'Minimal summa noto‘g‘ri kiritildi.')
+      return
+    }
+    setBusy(`payment${category.id}`)
+    try{const r=await adminFetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update_category_payment_rule',category_id:category.id,minimum_payment_mode:mode,minimum_payment_value:value})});if(!r.ok)throw Error((await r.json()).detail);await load()}catch(e){setError(e instanceof Error?e.message:'Minimal to‘lov yangilanmadi')}finally{setBusy('')}
+  }
   const configureTemplate=async(category:Category)=>{const rooms=window.confirm(`${category.name} uchun qaysi product shabloni ishlatiladi?\n\nOK — xonali shablon: agent xonalar qo‘shadi, mijoz xonani tanlaydi.\nBekor qilish — oddiy shablon: mulk bitta bron qilinadigan obyekt.`);setBusy(`template${category.id}`);try{const r=await adminFetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'update_category_template',category_id:category.id,product_template:rooms?'rooms':'standard'})});if(!r.ok)throw Error((await r.json()).detail);await load()}catch(e){setError(e instanceof Error?e.message:'Product shabloni yangilanmadi')}finally{setBusy('')}}
   const addPolicy=async()=>{const title=window.prompt('Siyosat sarlavhasi:');if(!title)return;const description=window.prompt('Tavsif:');if(!description)return;const type=window.prompt('Turi: success, warning yoki danger','warning');if(!type)return;setBusy('policy');try{const r=await adminFetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'cancellation_policy_create',title,description,type})});if(!r.ok)throw Error((await r.json()).detail);await load()}catch(e){setError(e instanceof Error?e.message:'Siyosat saqlanmadi')}finally{setBusy('')}}
   if(!data)return <section className="panel finance-state"><LoaderCircle className="spin"/> {error||'Katalog yuklanmoqda...'}</section>
