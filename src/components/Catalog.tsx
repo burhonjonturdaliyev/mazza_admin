@@ -41,6 +41,7 @@ export function Catalog() {
   const [productTemplate, setProductTemplate] = useState<"standard" | "rooms">("standard");
   const [allowsMultipleRooms, setAllowsMultipleRooms] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const load = async () => {
     setBusy("load");
@@ -91,6 +92,7 @@ export function Catalog() {
     setPaymentValue("15");
     setProductTemplate("standard");
     setAllowsMultipleRooms(false);
+    setEditingCategory(null);
     if (iconInputRef.current) iconInputRef.current.value = "";
   };
   const selectCategoryIcon = (event: ChangeEvent<HTMLInputElement>) =>
@@ -101,7 +103,7 @@ export function Catalog() {
       setError("Kategoriya nomini kiriting.");
       return;
     }
-    if (!categoryIcon) {
+    if (!categoryIcon && !editingCategory) {
       setError("Kategoriya uchun icon rasmini tanlang.");
       return;
     }
@@ -114,10 +116,11 @@ export function Catalog() {
     setError("");
     try {
       const form = new FormData();
-      form.append("action", "catalog_create");
+      form.append("action", editingCategory ? "catalog_update" : "catalog_create");
       form.append("entity", "category");
+      if (editingCategory) form.append("category_id", String(editingCategory.id));
       form.append("name", name);
-      form.append("icon", categoryIcon);
+      if (categoryIcon) form.append("icon", categoryIcon);
       form.append("minimum_payment_mode", paymentMode);
       form.append("minimum_payment_value", paymentValue.replace(",", "."));
       form.append("product_template", productTemplate);
@@ -132,6 +135,18 @@ export function Catalog() {
     } finally {
       setBusy("");
     }
+  };
+  const openCategoryEdit = (category: Category) => {
+    setSelectedCategory(null);
+    setEditingCategory(category);
+    setCategoryName(category.name);
+    setPaymentMode(category.minimum_payment_mode === "fixed" ? "fixed" : "percent");
+    setPaymentValue(String(category.minimum_payment_value ?? 15));
+    setProductTemplate(category.product_template === "rooms" ? "rooms" : "standard");
+    setAllowsMultipleRooms(category.allows_multiple_rooms === true);
+    setCategoryIcon(null);
+    setError("");
+    setCategoryDialog(true);
   };
   const remove = async (entity: string, id: number) => {
     if (!confirm("O‘chirishni tasdiqlaysizmi?")) return;
@@ -389,8 +404,8 @@ export function Catalog() {
           >
             <div className="catalog-modal-head">
               <div>
-                <h2>Yangi kategoriya</h2>
-                <p>Nomi va ilova uchun icon rasmini kiriting.</p>
+                <h2>{editingCategory ? "Kategoriyani tahrirlash" : "Yangi kategoriya"}</h2>
+                <p>{editingCategory ? "Kerakli sozlamalarni yangilang. Icon ixtiyoriy." : "Nomi va ilova uchun icon rasmini kiriting."}</p>
               </div>
               <button
                 type="button"
@@ -462,7 +477,7 @@ export function Catalog() {
                 className="catalog-save"
                 disabled={busy === "category"}
               >
-                {busy === "category" ? "Yuklanmoqda..." : "Kategoriya yaratish"}
+                {busy === "category" ? "Yuklanmoqda..." : editingCategory ? "O‘zgarishlarni saqlash" : "Kategoriya yaratish"}
               </button>
             </div>
           </form>
@@ -481,6 +496,9 @@ export function Catalog() {
               <div><dt>Product shabloni</dt><dd>{selectedCategory.product_template === "rooms" ? "Xonali shablon" : "Oddiy shablon"}</dd></div>
               <div><dt>Xonalar</dt><dd>{selectedCategory.allows_multiple_rooms ? "Bir nechta mustaqil xona" : "Bitta bron qilinadigan obyekt"}</dd></div>
             </dl>
+            <div className="catalog-modal-actions">
+              <button type="button" className="catalog-save" onClick={() => openCategoryEdit(selectedCategory)}>Tahrirlash</button>
+            </div>
           </article>
         </div>
       )}
