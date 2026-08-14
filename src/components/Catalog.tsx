@@ -36,6 +36,11 @@ export function Catalog() {
   const [categoryDialog, setCategoryDialog] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [categoryIcon, setCategoryIcon] = useState<File | null>(null);
+  const [paymentMode, setPaymentMode] = useState<"percent" | "fixed">("percent");
+  const [paymentValue, setPaymentValue] = useState("15");
+  const [productTemplate, setProductTemplate] = useState<"standard" | "rooms">("standard");
+  const [allowsMultipleRooms, setAllowsMultipleRooms] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const load = async () => {
     setBusy("load");
@@ -82,6 +87,10 @@ export function Catalog() {
     setCategoryDialog(false);
     setCategoryName("");
     setCategoryIcon(null);
+    setPaymentMode("percent");
+    setPaymentValue("15");
+    setProductTemplate("standard");
+    setAllowsMultipleRooms(false);
     if (iconInputRef.current) iconInputRef.current.value = "";
   };
   const selectCategoryIcon = (event: ChangeEvent<HTMLInputElement>) =>
@@ -96,6 +105,11 @@ export function Catalog() {
       setError("Kategoriya uchun icon rasmini tanlang.");
       return;
     }
+    const value = Number(paymentValue.replace(",", "."));
+    if (!Number.isFinite(value) || value < 0 || (paymentMode === "percent" && value > 100)) {
+      setError(paymentMode === "percent" ? "Foiz 0 dan 100 gacha bo‘lishi kerak." : "Minimal summa noto‘g‘ri.");
+      return;
+    }
     setBusy("category");
     setError("");
     try {
@@ -104,6 +118,10 @@ export function Catalog() {
       form.append("entity", "category");
       form.append("name", name);
       form.append("icon", categoryIcon);
+      form.append("minimum_payment_mode", paymentMode);
+      form.append("minimum_payment_value", paymentValue.replace(",", "."));
+      form.append("product_template", productTemplate);
+      form.append("allows_multiple_rooms", String(allowsMultipleRooms));
       const r = await adminFetch(API, { method: "POST", body: form });
       const body = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(body.detail || "Kategoriya saqlanmadi");
@@ -243,6 +261,11 @@ export function Catalog() {
     ["Qulayliklar", "comfortable", data.comfortables],
     ["Qoidalar", "rule", data.rules],
   ];
+  const categoryIconUrl = (icon?: string | null) => {
+    if (!icon) return "";
+    if (icon.startsWith("http")) return icon;
+    return `https://mazzajoy.uz${icon.startsWith("/") ? icon : `/media/${icon}`}`;
+  };
   return (
     <section className="panel directory">
       <div className="panel-head">
@@ -270,7 +293,14 @@ export function Catalog() {
             {items.length ? (
               items.map((item) => (
                 <p key={item.id}>
-                  <span className="catalog-name">{item.name}</span>
+                  <button
+                    type="button"
+                    className="catalog-name catalog-details"
+                    onClick={() => entity === "category" && setSelectedCategory(item as Category)}
+                    disabled={entity !== "category"}
+                  >
+                    {item.name}
+                  </button>
                   {entity === "category" ? (
                     <>
                       <button
@@ -395,6 +425,30 @@ export function Catalog() {
                   : "PNG, JPG yoki WEBP faylini tanlang"}
               </span>
             </label>
+            <div className="category-form-grid">
+              <label>
+                Oldindan to‘lov turi
+                <select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as "percent" | "fixed")}>
+                  <option value="percent">Bron narxidan foiz</option>
+                  <option value="fixed">Qat’iy summa (UZS)</option>
+                </select>
+              </label>
+              <label>
+                {paymentMode === "percent" ? "Foiz (%)" : "Minimal summa (so‘m)"}
+                <input value={paymentValue} inputMode="decimal" onChange={(event) => setPaymentValue(event.target.value)} placeholder={paymentMode === "percent" ? "15" : "100 000"} />
+              </label>
+              <label>
+                Product shabloni
+                <select value={productTemplate} onChange={(event) => setProductTemplate(event.target.value as "standard" | "rooms")}>
+                  <option value="standard">Oddiy shablon</option>
+                  <option value="rooms">Xonali shablon</option>
+                </select>
+              </label>
+              <label className="category-check">
+                <input type="checkbox" checked={allowsMultipleRooms} onChange={(event) => setAllowsMultipleRooms(event.target.checked)} />
+                Agent mustaqil bron qilinadigan bir nechta xona qo‘sha oladi
+              </label>
+            </div>
             <div className="catalog-modal-actions">
               <button
                 type="button"
@@ -412,6 +466,22 @@ export function Catalog() {
               </button>
             </div>
           </form>
+        </div>
+      )}
+      {selectedCategory && (
+        <div className="catalog-backdrop" role="presentation" onMouseDown={() => setSelectedCategory(null)}>
+          <article className="catalog-modal category-preview" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="catalog-modal-head">
+              <div><h2>{selectedCategory.name}</h2><p>Kategoriya sozlamalari</p></div>
+              <button type="button" className="modal-close" onClick={() => setSelectedCategory(null)}><X size={18} /></button>
+            </div>
+            {categoryIconUrl(selectedCategory.icon) ? <img className="category-preview-image" src={categoryIconUrl(selectedCategory.icon)} alt={`${selectedCategory.name} iconi`} /> : <div className="category-preview-empty">Icon yuklanmagan</div>}
+            <dl className="category-preview-details">
+              <div><dt>Oldindan to‘lov</dt><dd>{selectedCategory.minimum_payment_mode === "fixed" ? `${selectedCategory.minimum_payment_value || 0} so‘m` : `${selectedCategory.minimum_payment_value || 0}%`}</dd></div>
+              <div><dt>Product shabloni</dt><dd>{selectedCategory.product_template === "rooms" ? "Xonali shablon" : "Oddiy shablon"}</dd></div>
+              <div><dt>Xonalar</dt><dd>{selectedCategory.allows_multiple_rooms ? "Bir nechta mustaqil xona" : "Bitta bron qilinadigan obyekt"}</dd></div>
+            </dl>
+          </article>
         </div>
       )}
     </section>
