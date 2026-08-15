@@ -1,27 +1,568 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertCircle, CalendarDays, Check, ChevronRight, CircleAlert, FileText, Images, LoaderCircle, MapPin, Phone, RefreshCw, Search, ShieldCheck, X } from 'lucide-react'
-import './PropertiesBookings.css'
-import { adminFetch } from '../auth'
-const API_URL='https://mazzajoy.uz/api/v1/admin/platform/'
-const MEDIA_URL='https://mazzajoy.uz/media/'
-type Property={id:number;name:string;is_active:boolean;moderation_status?:string;is_banner?:boolean;is_famous?:boolean;is_best_offer?:boolean;is_recommended?:boolean;rating:number|null;user__phone:string|null;user__first_name?:string|null;region__name:string|null;category__name:string|null;info?:string|null;address?:string|null;phone?:string|null;stir?:string|null;id_passport?:string|null;cadastor?:string|null;contract_pechat?:string|null;images?:string[];image?:string|null;media?:string[]}
-type Booking={id:number;status:string;payment:number|string|null;is_paid:boolean;date_access:string|null;date_exit:string|null;user__phone:string|null;item__property__name:string|null}
-const msg=(e:unknown)=>e instanceof Error?e.message:'Kutilmagan xatolik yuz berdi.'
-const money=(v:number|string|null)=>`${new Intl.NumberFormat('uz-UZ',{maximumFractionDigits:0}).format(Number(v??0))} so‘m`
-const date=(v:string|null)=>v?new Intl.DateTimeFormat('uz-UZ',{day:'2-digit',month:'short',year:'numeric'}).format(new Date(`${v}T00:00:00`)):'—'
-const mediaUrl=(path?:string|null)=>!path?'':/^https?:\/\//.test(path)?path:`${MEDIA_URL}${path.replace(/^\//,'')}`
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  CircleAlert,
+  FileText,
+  Images,
+  LoaderCircle,
+  MapPin,
+  Phone,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  X,
+} from "lucide-react";
+import "./PropertiesBookings.css";
+import { adminFetch } from "../auth";
+const API_URL = "https://mazzajoy.uz/api/v1/admin/platform/";
+const MEDIA_URL = "https://mazzajoy.uz/media/";
+type Property = {
+  id: number;
+  name: string;
+  is_active: boolean;
+  moderation_status?: string;
+  is_banner?: boolean;
+  is_famous?: boolean;
+  is_best_offer?: boolean;
+  is_recommended?: boolean;
+  rating: number | null;
+  user__phone: string | null;
+  user__first_name?: string | null;
+  region__name: string | null;
+  category__name: string | null;
+  info?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  stir?: string | null;
+  id_passport?: string | null;
+  cadastor?: string | null;
+  contract_pechat?: string | null;
+  is_property_owner?: boolean;
+  property_owner_phone?: string | null;
+  images?: string[];
+  image?: string | null;
+  media?: string[];
+};
+type Booking = {
+  id: number;
+  status: string;
+  payment: number | string | null;
+  is_paid: boolean;
+  date_access: string | null;
+  date_exit: string | null;
+  user__phone: string | null;
+  item__property__name: string | null;
+};
+const msg = (e: unknown) =>
+  e instanceof Error ? e.message : "Kutilmagan xatolik yuz berdi.";
+const money = (v: number | string | null) =>
+  `${new Intl.NumberFormat("uz-UZ", { maximumFractionDigits: 0 }).format(Number(v ?? 0))} so‘m`;
+const date = (v: string | null) =>
+  v
+    ? new Intl.DateTimeFormat("uz-UZ", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      }).format(new Date(`${v}T00:00:00`))
+    : "—";
+const mediaUrl = (path?: string | null) =>
+  !path
+    ? ""
+    : /^https?:\/\//.test(path)
+      ? path
+      : `${MEDIA_URL}${path.replace(/^\//, "")}`;
 
-export function PropertiesBookings({section,token,query}:{section:'properties'|'bookings';token:string;query:string}){
- const [properties,setProperties]=useState<Property[]>([]),[bookings,setBookings]=useState<Booking[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[busy,setBusy]=useState<number|null>(null),[selected,setSelected]=useState<Property|null>(null),[reason,setReason]=useState('')
- const load=useCallback(async()=>{setLoading(true);setError('');try{const r=await adminFetch(`${API_URL}?section=${section}`),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.detail||'Ma’lumotlarni yuklab bo‘lmadi');section==='properties'?setProperties(Array.isArray(d.results)?d.results:[]):setBookings(Array.isArray(d.results)?d.results:[])}catch(e){setError(msg(e))}finally{setLoading(false)}},[section,token])
- useEffect(()=>{void load()},[load])
- const needle=query.toLowerCase(), props=useMemo(()=>properties.filter(x=>[x.name,x.user__phone,x.region__name,x.category__name].some(v=>v?.toLowerCase().includes(needle))),[properties,needle]), books=useMemo(()=>bookings.filter(x=>[x.item__property__name,x.user__phone,x.status,String(x.id)].some(v=>v?.toLowerCase().includes(needle))),[bookings,needle])
- const images=(p:Property)=>[...(p.images||[]),...(p.media||[]),p.image].filter((v):v is string=>Boolean(v))
- async function action(body:Record<string,unknown>,id:number){setBusy(id);setError('');try{const r=await adminFetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}),d=await r.json().catch(()=>({}));if(!r.ok)throw Error(d.detail||'Amal bajarilmadi');return true}catch(e){setError(msg(e));return false}finally{setBusy(null)}}
- async function review(p:Property,decision:'approved'|'rejected'){if(decision==='rejected'&&!reason.trim()){setError('Rad etish sababini kiriting.');return}if(await action({action:'review_property',property_id:p.id,decision,reason:reason.trim()},p.id)){setProperties(old=>old.map(x=>x.id===p.id?{...x,is_active:decision==='approved',moderation_status:decision}:x));setSelected(null);setReason('')}}
- async function visibility(p:Property,field:'is_banner'|'is_famous'|'is_best_offer'|'is_recommended'){const value=!p[field];if(await action({action:'set_property_visibility',property_id:p.id,field,value},p.id))setProperties(old=>old.map(x=>x.id===p.id?{...x,[field]:value}:x))}
- async function toggle(p:Property){const is_active=!p.is_active;if(!window.confirm(`“${p.name}” mulkini ${is_active?'faollashtirish':'to‘xtatish'}ni tasdiqlaysizmi?`))return;if(await action({action:'set_property_status',property_id:p.id,is_active},p.id))setProperties(old=>old.map(x=>x.id===p.id?{...x,is_active}:x))}
- return <section className="panel directory platform-directory"><div className="panel-head"><div><h2>{section==='properties'?'Mulklar':'Bronlar'}</h2><p>{section==='properties'?'Har bir e’lonni hujjatlari va fotosi bilan tekshirib, keyin nashrga chiqaring.':'Platformadagi bronlar va to‘lov holatlarini kuzating.'}</p></div><button className="refresh-button" onClick={()=>void load()} disabled={loading}><RefreshCw className={loading?'spin':''} size={16}/> Yangilash</button></div><div className="filter-row platform-filter-row"><span className="results-count">{loading?'Yuklanmoqda…':`${section==='properties'?props.length:books.length} ta natija`}</span></div>{error&&<div className="directory-message error-message"><CircleAlert size={19}/><div><strong>Amal bajarilmadi</strong><span>{error}</span></div><button onClick={()=>void load()}>Qayta urinish</button></div>}{loading&&<LoadingRows/>}{!loading&&!error&&section==='properties'&&props.map(p=>{const pending=['pending','submitted','review'].includes(p.moderation_status?.toLowerCase()||(!p.is_active?'pending':'approved'));return <article className="platform-row property-row" key={p.id}><span className="entity-icon property-icon"><MapPin size={18}/></span><div className="entity-main"><strong>{p.name}</strong><small>{p.category__name||'Kategoriya belgilanmagan'} · {p.region__name||'Hudud belgilanmagan'}</small></div><div className="entity-detail"><Phone size={13}/>{p.user__phone||'—'}</div><div className="entity-rating">★ {p.rating??'—'}</div><span className={pending?'pill pending':p.is_active?'pill':'pill stopped'}>{pending?'Tekshiruvda':p.is_active?'Tasdiqlangan':'Rad etilgan'}</span><div className="visibility-actions"><button className="status-action details-action" onClick={()=>{setSelected(p);setReason('')}}><FileText size={14}/> Ko‘rib chiqish</button><button className={p.is_famous?'status-action approve':'status-action'} disabled={busy===p.id||pending} onClick={()=>void visibility(p,'is_famous')}>Ommabop</button><button className={p.is_best_offer?'status-action approve':'status-action'} disabled={busy===p.id||pending} onClick={()=>void visibility(p,'is_best_offer')}>Eng yaxshi taklif</button><button className={p.is_recommended?'status-action approve':'status-action'} disabled={busy===p.id||pending} onClick={()=>void visibility(p,'is_recommended')}>Tavsiya etamiz</button><button className={p.is_banner?'status-action approve':'status-action'} disabled={busy===p.id||pending} onClick={()=>void visibility(p,'is_banner')}>Banner</button></div><button className={p.is_active?'status-action stop':'status-action approve'} disabled={busy===p.id||pending} onClick={()=>void toggle(p)}>{busy===p.id?<LoaderCircle className="spin" size={16}/>:p.is_active?<X size={16}/>:<Check size={16}/>}{p.is_active?'To‘xtatish':'Faollashtirish'}</button></article>})}{!loading&&!error&&section==='bookings'&&books.map(b=><article className="platform-row booking-row" key={b.id}><span className="entity-icon booking-icon"><CalendarDays size={18}/></span><div className="entity-main"><strong>{b.item__property__name||'Mulk ko‘rsatilmagan'}</strong><small>Bron #{b.id} · {b.user__phone||'Mijoz telefoni yo‘q'}</small></div><div className="booking-dates"><span>{date(b.date_access)}</span><ChevronRight size={14}/><span>{date(b.date_exit)}</span></div><div className="booking-payment"><strong>{money(b.payment)}</strong><small>{b.is_paid?'To‘langan':'To‘lov kutilmoqda'}</small></div><span className="pill">{b.status||'Noma’lum'}</span><span className={b.is_paid?'payment-mark paid':'payment-mark'}>{b.is_paid?<ShieldCheck size={18}/>:<AlertCircle size={18}/>}</span></article>)}{!loading&&!error&&((section==='properties'&&!props.length)||(section==='bookings'&&!books.length))&&<div className="directory-message empty-message"><Search size={22}/><div><strong>Hech narsa topilmadi</strong><span>Hozircha bu bo‘limda ma’lumot yo‘q.</span></div></div>}{selected&&<div className="review-backdrop" onMouseDown={()=>setSelected(null)}><section className="review-modal" role="dialog" aria-modal="true" onMouseDown={e=>e.stopPropagation()}><div className="review-title"><div><p className="eyebrow">E’LON MODERATSIYASI</p><h2>{selected.name}</h2><small>#{selected.id} · {selected.user__first_name||selected.user__phone||'Agent'}</small></div><button className="modal-close" onClick={()=>setSelected(null)}><X size={19}/></button></div><div className="review-content"><div className="review-media">{images(selected).length?images(selected).slice(0,6).map((src,i)=><a href={mediaUrl(src)} target="_blank" rel="noreferrer" key={`${src}-${i}`}><img src={mediaUrl(src)} alt={`${selected.name} ${i+1}`}/></a>):<div className="media-empty"><Images size={25}/><span>Rasmlar biriktirilmagan</span></div>}</div><div className="review-grid"><Info label="Kategoriya" value={selected.category__name}/><Info label="Hudud" value={selected.region__name}/><Info label="To‘liq manzil" value={selected.address}/><Info label="Aloqa" value={selected.phone||selected.user__phone}/><Info label="STIR" value={selected.stir}/><Info label="Kadastr" value={selected.cadastor}/><Info label="Pasport" value={selected.id_passport}/></div>{selected.info&&<div className="review-description"><strong>Tavsif</strong><p>{selected.info}</p></div>}<div className="review-documents"><strong>Biriktirilgan fayllar</strong>{([['ID / Pasport',selected.id_passport],['Kadastr',selected.cadastor],['Shartnoma va muhr',selected.contract_pechat]] as const).map(([label,file])=>file?<a className="document-link" href={mediaUrl(file)} target="_blank" rel="noreferrer" key={label}><FileText size={16}/>{label} faylini ochish</a>:<span className="document-missing" key={label}>{label}: biriktirilmagan</span>)}</div><label className="review-reason">Rad etish sababi <span>(rad etilganda majburiy)</span><textarea value={reason} onChange={e=>setReason(e.target.value)} rows={3}/></label></div><div className="review-footer"><button className="reject-review" disabled={busy===selected.id} onClick={()=>void review(selected,'rejected')}><X size={16}/> Rad etish</button><button className="approve-review" disabled={busy===selected.id} onClick={()=>void review(selected,'approved')}><Check size={16}/> Tasdiqlab nashr qilish</button></div></section></div>}</section>
+export function PropertiesBookings({
+  section,
+  token,
+  query,
+}: {
+  section: "properties" | "bookings";
+  token: string;
+  query: string;
+}) {
+  const [properties, setProperties] = useState<Property[]>([]),
+    [bookings, setBookings] = useState<Booking[]>([]),
+    [loading, setLoading] = useState(true),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState<number | null>(null),
+    [selected, setSelected] = useState<Property | null>(null),
+    [reason, setReason] = useState("");
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const r = await adminFetch(`${API_URL}?section=${section}`),
+        d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.detail || "Ma’lumotlarni yuklab bo‘lmadi");
+      section === "properties"
+        ? setProperties(Array.isArray(d.results) ? d.results : [])
+        : setBookings(Array.isArray(d.results) ? d.results : []);
+    } catch (e) {
+      setError(msg(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [section, token]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+  const needle = query.toLowerCase(),
+    props = useMemo(
+      () =>
+        properties.filter((x) =>
+          [x.name, x.user__phone, x.region__name, x.category__name].some((v) =>
+            v?.toLowerCase().includes(needle),
+          ),
+        ),
+      [properties, needle],
+    ),
+    books = useMemo(
+      () =>
+        bookings.filter((x) =>
+          [x.item__property__name, x.user__phone, x.status, String(x.id)].some(
+            (v) => v?.toLowerCase().includes(needle),
+          ),
+        ),
+      [bookings, needle],
+    );
+  const images = (p: Property) =>
+    [...(p.images || []), ...(p.media || []), p.image].filter(
+      (v): v is string => Boolean(v),
+    );
+  async function action(body: Record<string, unknown>, id: number) {
+    setBusy(id);
+    setError("");
+    try {
+      const r = await adminFetch(API_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        }),
+        d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.detail || "Amal bajarilmadi");
+      return true;
+    } catch (e) {
+      setError(msg(e));
+      return false;
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function review(p: Property, decision: "approved" | "rejected") {
+    if (decision === "rejected" && !reason.trim()) {
+      setError("Rad etish sababini kiriting.");
+      return;
+    }
+    if (
+      await action(
+        {
+          action: "review_property",
+          property_id: p.id,
+          decision,
+          reason: reason.trim(),
+        },
+        p.id,
+      )
+    ) {
+      setProperties((old) =>
+        old.map((x) =>
+          x.id === p.id
+            ? {
+                ...x,
+                is_active: decision === "approved",
+                moderation_status: decision,
+              }
+            : x,
+        ),
+      );
+      setSelected(null);
+      setReason("");
+    }
+  }
+  async function visibility(
+    p: Property,
+    field: "is_banner" | "is_famous" | "is_best_offer" | "is_recommended",
+  ) {
+    const value = !p[field];
+    if (
+      await action(
+        { action: "set_property_visibility", property_id: p.id, field, value },
+        p.id,
+      )
+    )
+      setProperties((old) =>
+        old.map((x) => (x.id === p.id ? { ...x, [field]: value } : x)),
+      );
+  }
+  async function toggle(p: Property) {
+    const is_active = !p.is_active;
+    if (
+      !window.confirm(
+        `“${p.name}” mulkini ${is_active ? "faollashtirish" : "to‘xtatish"}ni tasdiqlaysizmi?`,
+      )
+    )
+      return;
+    if (
+      await action(
+        { action: "set_property_status", property_id: p.id, is_active },
+        p.id,
+      )
+    )
+      setProperties((old) =>
+        old.map((x) => (x.id === p.id ? { ...x, is_active } : x)),
+      );
+  }
+  return (
+    <section className="panel directory platform-directory">
+      <div className="panel-head">
+        <div>
+          <h2>{section === "properties" ? "Mulklar" : "Bronlar"}</h2>
+          <p>
+            {section === "properties"
+              ? "Har bir e’lonni hujjatlari va fotosi bilan tekshirib, keyin nashrga chiqaring."
+              : "Platformadagi bronlar va to‘lov holatlarini kuzating."}
+          </p>
+        </div>
+        <button
+          className="refresh-button"
+          onClick={() => void load()}
+          disabled={loading}
+        >
+          <RefreshCw className={loading ? "spin" : ""} size={16} /> Yangilash
+        </button>
+      </div>
+      <div className="filter-row platform-filter-row">
+        <span className="results-count">
+          {loading
+            ? "Yuklanmoqda…"
+            : `${section === "properties" ? props.length : books.length} ta natija`}
+        </span>
+      </div>
+      {error && (
+        <div className="directory-message error-message">
+          <CircleAlert size={19} />
+          <div>
+            <strong>Amal bajarilmadi</strong>
+            <span>{error}</span>
+          </div>
+          <button onClick={() => void load()}>Qayta urinish</button>
+        </div>
+      )}
+      {loading && <LoadingRows />}
+      {!loading &&
+        !error &&
+        section === "properties" &&
+        props.map((p) => {
+          const pending = ["pending", "submitted", "review"].includes(
+            p.moderation_status?.toLowerCase() ||
+              (!p.is_active ? "pending" : "approved"),
+          );
+          return (
+            <article className="platform-row property-row" key={p.id}>
+              <span className="entity-icon property-icon">
+                <MapPin size={18} />
+              </span>
+              <div className="entity-main">
+                <strong>{p.name}</strong>
+                <small>
+                  {p.category__name || "Kategoriya belgilanmagan"} ·{" "}
+                  {p.region__name || "Hudud belgilanmagan"}
+                </small>
+              </div>
+              <div className="entity-detail">
+                <Phone size={13} />
+                {p.user__phone || "—"}
+              </div>
+              <div className="entity-rating">★ {p.rating ?? "—"}</div>
+              <span
+                className={
+                  pending
+                    ? "pill pending"
+                    : p.is_active
+                      ? "pill"
+                      : "pill stopped"
+                }
+              >
+                {pending
+                  ? "Tekshiruvda"
+                  : p.is_active
+                    ? "Tasdiqlangan"
+                    : "Rad etilgan"}
+              </span>
+              <div className="visibility-actions">
+                <button
+                  className="status-action details-action"
+                  onClick={() => {
+                    setSelected(p);
+                    setReason("");
+                  }}
+                >
+                  <FileText size={14} /> Ko‘rib chiqish
+                </button>
+                <button
+                  className={
+                    p.is_famous ? "status-action approve" : "status-action"
+                  }
+                  disabled={busy === p.id || pending}
+                  onClick={() => void visibility(p, "is_famous")}
+                >
+                  Ommabop
+                </button>
+                <button
+                  className={
+                    p.is_best_offer ? "status-action approve" : "status-action"
+                  }
+                  disabled={busy === p.id || pending}
+                  onClick={() => void visibility(p, "is_best_offer")}
+                >
+                  Eng yaxshi taklif
+                </button>
+                <button
+                  className={
+                    p.is_recommended ? "status-action approve" : "status-action"
+                  }
+                  disabled={busy === p.id || pending}
+                  onClick={() => void visibility(p, "is_recommended")}
+                >
+                  Tavsiya etamiz
+                </button>
+                <button
+                  className={
+                    p.is_banner ? "status-action approve" : "status-action"
+                  }
+                  disabled={busy === p.id || pending}
+                  onClick={() => void visibility(p, "is_banner")}
+                >
+                  Banner
+                </button>
+              </div>
+              <button
+                className={
+                  p.is_active ? "status-action stop" : "status-action approve"
+                }
+                disabled={busy === p.id || pending}
+                onClick={() => void toggle(p)}
+              >
+                {busy === p.id ? (
+                  <LoaderCircle className="spin" size={16} />
+                ) : p.is_active ? (
+                  <X size={16} />
+                ) : (
+                  <Check size={16} />
+                )}
+                {p.is_active ? "To‘xtatish" : "Faollashtirish"}
+              </button>
+            </article>
+          );
+        })}
+      {!loading &&
+        !error &&
+        section === "bookings" &&
+        books.map((b) => (
+          <article className="platform-row booking-row" key={b.id}>
+            <span className="entity-icon booking-icon">
+              <CalendarDays size={18} />
+            </span>
+            <div className="entity-main">
+              <strong>{b.item__property__name || "Mulk ko‘rsatilmagan"}</strong>
+              <small>
+                Bron #{b.id} · {b.user__phone || "Mijoz telefoni yo‘q"}
+              </small>
+            </div>
+            <div className="booking-dates">
+              <span>{date(b.date_access)}</span>
+              <ChevronRight size={14} />
+              <span>{date(b.date_exit)}</span>
+            </div>
+            <div className="booking-payment">
+              <strong>{money(b.payment)}</strong>
+              <small>{b.is_paid ? "To‘langan" : "To‘lov kutilmoqda"}</small>
+            </div>
+            <span className="pill">{b.status || "Noma’lum"}</span>
+            <span className={b.is_paid ? "payment-mark paid" : "payment-mark"}>
+              {b.is_paid ? (
+                <ShieldCheck size={18} />
+              ) : (
+                <AlertCircle size={18} />
+              )}
+            </span>
+          </article>
+        ))}
+      {!loading &&
+        !error &&
+        ((section === "properties" && !props.length) ||
+          (section === "bookings" && !books.length)) && (
+          <div className="directory-message empty-message">
+            <Search size={22} />
+            <div>
+              <strong>Hech narsa topilmadi</strong>
+              <span>Hozircha bu bo‘limda ma’lumot yo‘q.</span>
+            </div>
+          </div>
+        )}
+      {selected && (
+        <div className="review-backdrop" onMouseDown={() => setSelected(null)}>
+          <section
+            className="review-modal"
+            role="dialog"
+            aria-modal="true"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="review-title">
+              <div>
+                <p className="eyebrow">E’LON MODERATSIYASI</p>
+                <h2>{selected.name}</h2>
+                <small>
+                  #{selected.id} ·{" "}
+                  {selected.user__first_name || selected.user__phone || "Agent"}
+                </small>
+              </div>
+              <button className="modal-close" onClick={() => setSelected(null)}>
+                <X size={19} />
+              </button>
+            </div>
+            <div className="review-content">
+              <div className="review-media">
+                {images(selected).length ? (
+                  images(selected)
+                    .slice(0, 6)
+                    .map((src, i) => (
+                      <a
+                        href={mediaUrl(src)}
+                        target="_blank"
+                        rel="noreferrer"
+                        key={`${src}-${i}`}
+                      >
+                        <img
+                          src={mediaUrl(src)}
+                          alt={`${selected.name} ${i + 1}`}
+                        />
+                      </a>
+                    ))
+                ) : (
+                  <div className="media-empty">
+                    <Images size={25} />
+                    <span>Rasmlar biriktirilmagan</span>
+                  </div>
+                )}
+              </div>
+              <div className="review-grid">
+                <Info label="Kategoriya" value={selected.category__name} />
+                <Info label="Hudud" value={selected.region__name} />
+                <Info label="To‘liq manzil" value={selected.address} />
+                <Info
+                  label="Aloqa"
+                  value={selected.phone || selected.user__phone}
+                />
+                <Info label="STIR" value={selected.stir} />
+                <Info label="Kadastr" value={selected.cadastor} />
+                <Info label="Pasport" value={selected.id_passport} />
+                <Info
+                  label="Mulk egasi"
+                  value={
+                    selected.is_property_owner === false
+                      ? "Boshqa shaxs"
+                      : "Agentning o‘zi"
+                  }
+                />
+                {selected.is_property_owner === false && (
+                  <Info
+                    label="Egasi telefoni"
+                    value={selected.property_owner_phone}
+                  />
+                )}
+              </div>
+              {selected.info && (
+                <div className="review-description">
+                  <strong>Tavsif</strong>
+                  <p>{selected.info}</p>
+                </div>
+              )}
+              <div className="review-documents">
+                <strong>Biriktirilgan fayllar</strong>
+                {(
+                  [
+                    ["ID / Pasport", selected.id_passport],
+                    ["Kadastr", selected.cadastor],
+                    ["Shartnoma va muhr", selected.contract_pechat],
+                  ] as const
+                ).map(([label, file]) =>
+                  file ? (
+                    <a
+                      className="document-link"
+                      href={mediaUrl(file)}
+                      target="_blank"
+                      rel="noreferrer"
+                      key={label}
+                    >
+                      <FileText size={16} />
+                      {label} faylini ochish
+                    </a>
+                  ) : (
+                    <span className="document-missing" key={label}>
+                      {label}: biriktirilmagan
+                    </span>
+                  ),
+                )}
+              </div>
+              <label className="review-reason">
+                Rad etish sababi <span>(rad etilganda majburiy)</span>
+                <textarea
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  rows={3}
+                />
+              </label>
+            </div>
+            <div className="review-footer">
+              <button
+                className="reject-review"
+                disabled={busy === selected.id}
+                onClick={() => void review(selected, "rejected")}
+              >
+                <X size={16} /> Rad etish
+              </button>
+              <button
+                className="approve-review"
+                disabled={busy === selected.id}
+                onClick={() => void review(selected, "approved")}
+              >
+                <Check size={16} /> Tasdiqlab nashr qilish
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
+    </section>
+  );
 }
-function Info({label,value}:{label:string;value?:string|null}){return <div><small>{label}</small><strong>{value||'Kiritilmagan'}</strong></div>}
-function LoadingRows(){return <div className="loading-list">{Array.from({length:5},(_,i)=><div className="skeleton-row" key={i}><i/><div><b/><small/></div><span/><span/><em/></div>)}</div>}
+function Info({ label, value }: { label: string; value?: string | null }) {
+  return (
+    <div>
+      <small>{label}</small>
+      <strong>{value || "Kiritilmagan"}</strong>
+    </div>
+  );
+}
+function LoadingRows() {
+  return (
+    <div className="loading-list">
+      {Array.from({ length: 5 }, (_, i) => (
+        <div className="skeleton-row" key={i}>
+          <i />
+          <div>
+            <b />
+            <small />
+          </div>
+          <span />
+          <span />
+          <em />
+        </div>
+      ))}
+    </div>
+  );
+}

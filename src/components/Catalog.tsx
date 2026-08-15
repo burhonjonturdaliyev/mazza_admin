@@ -36,13 +36,27 @@ export function Catalog() {
   const [categoryDialog, setCategoryDialog] = useState(false);
   const [categoryName, setCategoryName] = useState("");
   const [categoryIcon, setCategoryIcon] = useState<File | null>(null);
-  const [paymentMode, setPaymentMode] = useState<"percent" | "fixed">("percent");
+  const [paymentMode, setPaymentMode] = useState<"percent" | "fixed">(
+    "percent",
+  );
   const [paymentValue, setPaymentValue] = useState("15");
-  const [productTemplate, setProductTemplate] = useState<"standard" | "rooms">("standard");
+  const [productTemplate, setProductTemplate] = useState<"standard" | "rooms">(
+    "standard",
+  );
   const [allowsMultipleRooms, setAllowsMultipleRooms] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<Category | null>(
+    null,
+  );
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
+  const ruleIconInputRef = useRef<HTMLInputElement>(null);
+  const policyIconInputRef = useRef<HTMLInputElement>(null);
+  const [pendingRuleName, setPendingRuleName] = useState("");
+  const [pendingPolicy, setPendingPolicy] = useState<{
+    title: string;
+    description: string;
+    type: string;
+  } | null>(null);
   const load = async () => {
     setBusy("load");
     setError("");
@@ -66,6 +80,13 @@ export function Catalog() {
       setCategoryDialog(true);
       return;
     }
+    if (entity === "rule") {
+      const name = window.prompt("Qoida nomi:");
+      if (!name?.trim()) return;
+      setPendingRuleName(name.trim());
+      ruleIconInputRef.current?.click();
+      return;
+    }
     const name = window.prompt("Nomi:");
     if (!name) return;
     setBusy(entity);
@@ -81,6 +102,29 @@ export function Catalog() {
       setError(e instanceof Error ? e.message : "Saqlanmadi");
     } finally {
       setBusy("");
+    }
+  };
+  const uploadRule = async (event: ChangeEvent<HTMLInputElement>) => {
+    const icon = event.target.files?.[0];
+    if (!icon || !pendingRuleName) return;
+    setBusy("rule");
+    setError("");
+    try {
+      const form = new FormData();
+      form.append("action", "catalog_create");
+      form.append("entity", "rule");
+      form.append("name", pendingRuleName);
+      form.append("image", icon);
+      const r = await adminFetch(API, { method: "POST", body: form });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.detail || "Qoida saqlanmadi");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Qoida saqlanmadi");
+    } finally {
+      setBusy("");
+      setPendingRuleName("");
+      event.target.value = "";
     }
   };
   const closeCategoryDialog = (force = false) => {
@@ -108,17 +152,29 @@ export function Catalog() {
       return;
     }
     const value = Number(paymentValue.replace(",", "."));
-    if (!Number.isFinite(value) || value < 0 || (paymentMode === "percent" && value > 100)) {
-      setError(paymentMode === "percent" ? "Foiz 0 dan 100 gacha bo‘lishi kerak." : "Minimal summa noto‘g‘ri.");
+    if (
+      !Number.isFinite(value) ||
+      value < 0 ||
+      (paymentMode === "percent" && value > 100)
+    ) {
+      setError(
+        paymentMode === "percent"
+          ? "Foiz 0 dan 100 gacha bo‘lishi kerak."
+          : "Minimal summa noto‘g‘ri.",
+      );
       return;
     }
     setBusy("category");
     setError("");
     try {
       const form = new FormData();
-      form.append("action", editingCategory ? "catalog_update" : "catalog_create");
+      form.append(
+        "action",
+        editingCategory ? "catalog_update" : "catalog_create",
+      );
       form.append("entity", "category");
-      if (editingCategory) form.append("category_id", String(editingCategory.id));
+      if (editingCategory)
+        form.append("category_id", String(editingCategory.id));
       form.append("name", name);
       if (categoryIcon) form.append("icon", categoryIcon);
       form.append("minimum_payment_mode", paymentMode);
@@ -140,9 +196,13 @@ export function Catalog() {
     setSelectedCategory(null);
     setEditingCategory(category);
     setCategoryName(category.name);
-    setPaymentMode(category.minimum_payment_mode === "fixed" ? "fixed" : "percent");
+    setPaymentMode(
+      category.minimum_payment_mode === "fixed" ? "fixed" : "percent",
+    );
     setPaymentValue(String(category.minimum_payment_value ?? 15));
-    setProductTemplate(category.product_template === "rooms" ? "rooms" : "standard");
+    setProductTemplate(
+      category.product_template === "rooms" ? "rooms" : "standard",
+    );
     setAllowsMultipleRooms(category.allows_multiple_rooms === true);
     setCategoryIcon(null);
     setError("");
@@ -244,24 +304,36 @@ export function Catalog() {
     if (!description) return;
     const type = window.prompt("Turi: success, warning yoki danger", "warning");
     if (!type) return;
+    if (!["success", "warning", "danger"].includes(type)) {
+      setError("Turi success, warning yoki danger bo‘lishi kerak.");
+      return;
+    }
+    setPendingPolicy({ title, description, type });
+    policyIconInputRef.current?.click();
+  };
+  const uploadPolicy = async (event: ChangeEvent<HTMLInputElement>) => {
+    const icon = event.target.files?.[0];
+    const policy = pendingPolicy;
+    if (!icon || !policy) return;
     setBusy("policy");
+    setError("");
     try {
-      const r = await adminFetch(API, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "cancellation_policy_create",
-          title,
-          description,
-          type,
-        }),
-      });
-      if (!r.ok) throw Error((await r.json()).detail);
+      const form = new FormData();
+      form.append("action", "cancellation_policy_create");
+      form.append("title", policy.title);
+      form.append("description", policy.description);
+      form.append("type", policy.type);
+      form.append("icon", icon);
+      const r = await adminFetch(API, { method: "POST", body: form });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.detail || "Siyosat saqlanmadi");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Siyosat saqlanmadi");
     } finally {
       setBusy("");
+      setPendingPolicy(null);
+      event.target.value = "";
     }
   };
   if (!data)
@@ -283,6 +355,20 @@ export function Catalog() {
   };
   return (
     <section className="panel directory">
+      <input
+        ref={ruleIconInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => void uploadRule(event)}
+      />
+      <input
+        ref={policyIconInputRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => void uploadPolicy(event)}
+      />
       <div className="panel-head">
         <div>
           <h2>Platforma sozlamalari</h2>
@@ -308,10 +394,25 @@ export function Catalog() {
             {items.length ? (
               items.map((item) => (
                 <p key={item.id}>
+                  {entity === "rule" && item.image ? (
+                    <img
+                      src={categoryIconUrl(item.image)}
+                      alt=""
+                      style={{
+                        width: 24,
+                        height: 24,
+                        objectFit: "cover",
+                        borderRadius: 6,
+                      }}
+                    />
+                  ) : null}
                   <button
                     type="button"
                     className="catalog-name catalog-details"
-                    onClick={() => entity === "category" && setSelectedCategory(item as Category)}
+                    onClick={() =>
+                      entity === "category" &&
+                      setSelectedCategory(item as Category)
+                    }
                     disabled={entity !== "category"}
                   >
                     {item.name}
@@ -365,7 +466,21 @@ export function Catalog() {
           {(data.cancellation_policies || []).length ? (
             (data.cancellation_policies || []).map((item) => (
               <p key={item.id}>
-                <span>{item.title}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {item.icon ? (
+                    <img
+                      src={categoryIconUrl(item.icon)}
+                      alt=""
+                      style={{
+                        width: 26,
+                        height: 26,
+                        objectFit: "cover",
+                        borderRadius: 6,
+                      }}
+                    />
+                  ) : null}
+                  {item.title}
+                </span>
                 <button
                   onClick={() => void remove("cancellation_policy", item.id)}
                   disabled={!!busy}
@@ -404,8 +519,16 @@ export function Catalog() {
           >
             <div className="catalog-modal-head">
               <div>
-                <h2>{editingCategory ? "Kategoriyani tahrirlash" : "Yangi kategoriya"}</h2>
-                <p>{editingCategory ? "Kerakli sozlamalarni yangilang. Icon ixtiyoriy." : "Nomi va ilova uchun icon rasmini kiriting."}</p>
+                <h2>
+                  {editingCategory
+                    ? "Kategoriyani tahrirlash"
+                    : "Yangi kategoriya"}
+                </h2>
+                <p>
+                  {editingCategory
+                    ? "Kerakli sozlamalarni yangilang. Icon ixtiyoriy."
+                    : "Nomi va ilova uchun icon rasmini kiriting."}
+                </p>
               </div>
               <button
                 type="button"
@@ -443,24 +566,49 @@ export function Catalog() {
             <div className="category-form-grid">
               <label>
                 Oldindan to‘lov turi
-                <select value={paymentMode} onChange={(event) => setPaymentMode(event.target.value as "percent" | "fixed")}>
+                <select
+                  value={paymentMode}
+                  onChange={(event) =>
+                    setPaymentMode(event.target.value as "percent" | "fixed")
+                  }
+                >
                   <option value="percent">Bron narxidan foiz</option>
                   <option value="fixed">Qat’iy summa (UZS)</option>
                 </select>
               </label>
               <label>
-                {paymentMode === "percent" ? "Foiz (%)" : "Minimal summa (so‘m)"}
-                <input value={paymentValue} inputMode="decimal" onChange={(event) => setPaymentValue(event.target.value)} placeholder={paymentMode === "percent" ? "15" : "100 000"} />
+                {paymentMode === "percent"
+                  ? "Foiz (%)"
+                  : "Minimal summa (so‘m)"}
+                <input
+                  value={paymentValue}
+                  inputMode="decimal"
+                  onChange={(event) => setPaymentValue(event.target.value)}
+                  placeholder={paymentMode === "percent" ? "15" : "100 000"}
+                />
               </label>
               <label>
                 Product shabloni
-                <select value={productTemplate} onChange={(event) => setProductTemplate(event.target.value as "standard" | "rooms")}>
+                <select
+                  value={productTemplate}
+                  onChange={(event) =>
+                    setProductTemplate(
+                      event.target.value as "standard" | "rooms",
+                    )
+                  }
+                >
                   <option value="standard">Oddiy shablon</option>
                   <option value="rooms">Xonali shablon</option>
                 </select>
               </label>
               <label className="category-check">
-                <input type="checkbox" checked={allowsMultipleRooms} onChange={(event) => setAllowsMultipleRooms(event.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={allowsMultipleRooms}
+                  onChange={(event) =>
+                    setAllowsMultipleRooms(event.target.checked)
+                  }
+                />
                 Agent mustaqil bron qilinadigan bir nechta xona qo‘sha oladi
               </label>
             </div>
@@ -477,27 +625,82 @@ export function Catalog() {
                 className="catalog-save"
                 disabled={busy === "category"}
               >
-                {busy === "category" ? "Yuklanmoqda..." : editingCategory ? "O‘zgarishlarni saqlash" : "Kategoriya yaratish"}
+                {busy === "category"
+                  ? "Yuklanmoqda..."
+                  : editingCategory
+                    ? "O‘zgarishlarni saqlash"
+                    : "Kategoriya yaratish"}
               </button>
             </div>
           </form>
         </div>
       )}
       {selectedCategory && (
-        <div className="catalog-backdrop" role="presentation" onMouseDown={() => setSelectedCategory(null)}>
-          <article className="catalog-modal category-preview" onMouseDown={(event) => event.stopPropagation()}>
+        <div
+          className="catalog-backdrop"
+          role="presentation"
+          onMouseDown={() => setSelectedCategory(null)}
+        >
+          <article
+            className="catalog-modal category-preview"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
             <div className="catalog-modal-head">
-              <div><h2>{selectedCategory.name}</h2><p>Kategoriya sozlamalari</p></div>
-              <button type="button" className="modal-close" onClick={() => setSelectedCategory(null)}><X size={18} /></button>
+              <div>
+                <h2>{selectedCategory.name}</h2>
+                <p>Kategoriya sozlamalari</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setSelectedCategory(null)}
+              >
+                <X size={18} />
+              </button>
             </div>
-            {categoryIconUrl(selectedCategory.icon) ? <img className="category-preview-image" src={categoryIconUrl(selectedCategory.icon)} alt={`${selectedCategory.name} iconi`} /> : <div className="category-preview-empty">Icon yuklanmagan</div>}
+            {categoryIconUrl(selectedCategory.icon) ? (
+              <img
+                className="category-preview-image"
+                src={categoryIconUrl(selectedCategory.icon)}
+                alt={`${selectedCategory.name} iconi`}
+              />
+            ) : (
+              <div className="category-preview-empty">Icon yuklanmagan</div>
+            )}
             <dl className="category-preview-details">
-              <div><dt>Oldindan to‘lov</dt><dd>{selectedCategory.minimum_payment_mode === "fixed" ? `${selectedCategory.minimum_payment_value || 0} so‘m` : `${selectedCategory.minimum_payment_value || 0}%`}</dd></div>
-              <div><dt>Product shabloni</dt><dd>{selectedCategory.product_template === "rooms" ? "Xonali shablon" : "Oddiy shablon"}</dd></div>
-              <div><dt>Xonalar</dt><dd>{selectedCategory.allows_multiple_rooms ? "Bir nechta mustaqil xona" : "Bitta bron qilinadigan obyekt"}</dd></div>
+              <div>
+                <dt>Oldindan to‘lov</dt>
+                <dd>
+                  {selectedCategory.minimum_payment_mode === "fixed"
+                    ? `${selectedCategory.minimum_payment_value || 0} so‘m`
+                    : `${selectedCategory.minimum_payment_value || 0}%`}
+                </dd>
+              </div>
+              <div>
+                <dt>Product shabloni</dt>
+                <dd>
+                  {selectedCategory.product_template === "rooms"
+                    ? "Xonali shablon"
+                    : "Oddiy shablon"}
+                </dd>
+              </div>
+              <div>
+                <dt>Xonalar</dt>
+                <dd>
+                  {selectedCategory.allows_multiple_rooms
+                    ? "Bir nechta mustaqil xona"
+                    : "Bitta bron qilinadigan obyekt"}
+                </dd>
+              </div>
             </dl>
             <div className="catalog-modal-actions">
-              <button type="button" className="catalog-save" onClick={() => openCategoryEdit(selectedCategory)}>Tahrirlash</button>
+              <button
+                type="button"
+                className="catalog-save"
+                onClick={() => openCategoryEdit(selectedCategory)}
+              >
+                Tahrirlash
+              </button>
             </div>
           </article>
         </div>
