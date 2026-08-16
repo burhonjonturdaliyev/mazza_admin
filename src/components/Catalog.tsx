@@ -28,6 +28,13 @@ type CatalogData = {
   cancellation_policies?: any[];
   banners: any[];
 };
+type AssetDialog = {
+  entity: "comfortable" | "rule" | "policy";
+  name: string;
+  description: string;
+  type: "success" | "warning" | "danger";
+  icon: File | null;
+};
 
 export function Catalog() {
   const [data, setData] = useState<CatalogData | null>(null);
@@ -57,6 +64,7 @@ export function Catalog() {
     description: string;
     type: string;
   } | null>(null);
+  const [assetDialog, setAssetDialog] = useState<AssetDialog | null>(null);
   const load = async () => {
     setBusy("load");
     setError("");
@@ -80,11 +88,15 @@ export function Catalog() {
       setCategoryDialog(true);
       return;
     }
-    if (entity === "rule") {
-      const name = window.prompt("Qoida nomi:");
-      if (!name?.trim()) return;
-      setPendingRuleName(name.trim());
-      ruleIconInputRef.current?.click();
+    if (entity === "rule" || entity === "comfortable") {
+      setError("");
+      setAssetDialog({
+        entity,
+        name: "",
+        description: "",
+        type: "warning",
+        icon: null,
+      });
       return;
     }
     const name = window.prompt("Nomi:");
@@ -297,19 +309,54 @@ export function Catalog() {
       setBusy("");
     }
   };
-  const addPolicy = async () => {
-    const title = window.prompt("Siyosat sarlavhasi:");
-    if (!title) return;
-    const description = window.prompt("Tavsif:");
-    if (!description) return;
-    const type = window.prompt("Turi: success, warning yoki danger", "warning");
-    if (!type) return;
-    if (!["success", "warning", "danger"].includes(type)) {
-      setError("Turi success, warning yoki danger bo‘lishi kerak.");
+  const addPolicy = () => {
+    setError("");
+    setAssetDialog({
+      entity: "policy",
+      name: "",
+      description: "",
+      type: "warning",
+      icon: null,
+    });
+  };
+  const saveAsset = async () => {
+    const item = assetDialog;
+    if (!item) return;
+    if (
+      !item.name.trim() ||
+      !item.icon ||
+      (item.entity === "policy" && !item.description.trim())
+    ) {
+      setError("Nomi, tavsifi va icon rasmini to‘ldiring.");
       return;
     }
-    setPendingPolicy({ title, description, type });
-    policyIconInputRef.current?.click();
+    const busyKey = item.entity === "policy" ? "policy" : item.entity;
+    setBusy(busyKey);
+    setError("");
+    try {
+      const form = new FormData();
+      if (item.entity === "policy") {
+        form.append("action", "cancellation_policy_create");
+        form.append("title", item.name.trim());
+        form.append("description", item.description.trim());
+        form.append("type", item.type);
+        form.append("icon", item.icon);
+      } else {
+        form.append("action", "catalog_create");
+        form.append("entity", item.entity);
+        form.append("name", item.name.trim());
+        form.append("image", item.icon);
+      }
+      const r = await adminFetch(API, { method: "POST", body: form });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw Error(d.detail || "Saqlanmadi");
+      setAssetDialog(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Saqlanmadi");
+    } finally {
+      setBusy("");
+    }
   };
   const uploadPolicy = async (event: ChangeEvent<HTMLInputElement>) => {
     const icon = event.target.files?.[0];
@@ -630,6 +677,122 @@ export function Catalog() {
                   : editingCategory
                     ? "O‘zgarishlarni saqlash"
                     : "Kategoriya yaratish"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+      {assetDialog && (
+        <div
+          className="catalog-backdrop"
+          role="presentation"
+          onMouseDown={() => busy || setAssetDialog(null)}
+        >
+          <form
+            className="catalog-modal"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault();
+              void saveAsset();
+            }}
+          >
+            <div className="catalog-modal-head">
+              <div>
+                <h2>
+                  {assetDialog.entity === "policy"
+                    ? "Bekor qilish siyosati"
+                    : assetDialog.entity === "rule"
+                      ? "Yangi qoida"
+                      : "Yangi qulaylik"}
+                </h2>
+                <p>Ilovada ko‘rinishi uchun icon rasmi majburiy.</p>
+              </div>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setAssetDialog(null)}
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <label>
+              {assetDialog.entity === "policy" ? "Sarlavha" : "Nomi"}
+              <input
+                autoFocus
+                value={assetDialog.name}
+                onChange={(event) =>
+                  setAssetDialog({ ...assetDialog, name: event.target.value })
+                }
+                placeholder={
+                  assetDialog.entity === "rule"
+                    ? "Masalan: Chekish taqiqlanadi"
+                    : "Nomini kiriting"
+                }
+              />
+            </label>
+            {assetDialog.entity === "policy" && (
+              <>
+                <label>
+                  Tavsif
+                  <textarea
+                    rows={3}
+                    value={assetDialog.description}
+                    onChange={(event) =>
+                      setAssetDialog({
+                        ...assetDialog,
+                        description: event.target.value,
+                      })
+                    }
+                    placeholder="Bekor qilish shartini yozing"
+                  />
+                </label>
+                <label>
+                  Siyosat turi
+                  <select
+                    value={assetDialog.type}
+                    onChange={(event) =>
+                      setAssetDialog({
+                        ...assetDialog,
+                        type: event.target.value as AssetDialog["type"],
+                      })
+                    }
+                  >
+                    <option value="success">Yashil / ijobiy</option>
+                    <option value="warning">Sariq / ogohlantirish</option>
+                    <option value="danger">Qizil / qat’iy</option>
+                  </select>
+                </label>
+              </>
+            )}
+            <label>
+              Icon rasmi
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(event) =>
+                  setAssetDialog({
+                    ...assetDialog,
+                    icon: event.target.files?.[0] || null,
+                  })
+                }
+              />
+              <span className="catalog-file">
+                <ImagePlus size={18} />
+                {assetDialog.icon
+                  ? assetDialog.icon.name
+                  : "PNG, JPG yoki WEBP faylini tanlang"}
+              </span>
+            </label>
+            <div className="catalog-modal-actions">
+              <button
+                type="button"
+                className="catalog-cancel"
+                onClick={() => setAssetDialog(null)}
+              >
+                Bekor qilish
+              </button>
+              <button type="submit" className="catalog-save" disabled={!!busy}>
+                {busy ? "Yuklanmoqda..." : "Saqlash"}
               </button>
             </div>
           </form>
