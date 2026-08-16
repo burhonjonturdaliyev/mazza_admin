@@ -21,7 +21,7 @@ function label(kind: string) {
 }
 function person(row: { user__first_name?: string; user__phone?: string }) { return row.user__first_name || row.user__phone || 'Noma’lum foydalanuvchi' }
 
-export function FinanceDirectory({ view, token, query, onPendingChange }: { view: FinanceView; token: string; query: string; onPendingChange?: (count: number) => void }) {
+export function FinanceDirectory({ view, token: _token, query, onPendingChange }: { view: FinanceView; token: string; query: string; onPendingChange?: (count: number) => void }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [balances, setBalances] = useState<Balance[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
@@ -39,7 +39,7 @@ export function FinanceDirectory({ view, token, query, onPendingChange }: { view
     const body = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(body.detail || 'Serverdan ma’lumot olib bo‘lmadi')
     return body
-  }, [token])
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true); setError('')

@@ -12,6 +12,7 @@ import { Catalog } from './components/Catalog'
 import { Notifications } from './components/Notifications'
 import { adminFetch } from './auth'
 import './App.css'
+import './polish.css'
 
 
 type View = 'Dashboard' | 'Foydalanuvchilar' | 'Agentlar' | 'Agent arizalari' | 'Mulklar' | 'Bronlar' | 'Tranzaksiyalar' | 'Pul yechish' | 'Bildirishnomalar' | 'Sozlamalar'
@@ -110,7 +111,6 @@ const userName = (user: PlatformUser) => user.full_name || [user.first_name, use
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
 
 function Directory({view,query,token}:{view:View,query:string,token:string}) {
-  if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query}/>
   const isUsers = view === 'Foydalanuvchilar'
   const isRequests = view === 'Agent arizalari'
   const [rows, setRows] = useState<PlatformUser[]>([])
@@ -141,7 +141,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
       .catch(reason => { if (reason.name !== 'AbortError') setError(reason.message || 'Tarmoq xatosi yuz berdi') })
       .finally(() => { if (!controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [isUsers, token, view])
+  }, [isRequests, isUsers, token, view])
 
   const filtered = rows.filter(user => (!isRequests || user.agent_request_pending) && `${userName(user)} ${user.username ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(query.toLowerCase()))
   async function approve(user: PlatformUser) {
@@ -169,8 +169,14 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
     finally { setActionId(null) }
   }
 
+  if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query}/>
   if (!isUsers && view !== 'Agentlar' && !isRequests) return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>Bu bo‘lim hozir yuklanmoqda.</p></div></div></section>
-  return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>{isUsers ? 'Platformadagi foydalanuvchilar, rollar va agent arizalarini boshqaring.' : 'Agentlar va tasdiqlashni kutayotgan arizalar.'}</p></div></div><div className="filter-row"><button>{isUsers ? 'Barcha rollar' : 'Agentlar'} <ChevronDown size={14}/></button><span>{loading ? 'Yuklanmoqda...' : `${filtered.length} ta natija`}</span></div>{message && <div className="directory-notice success"><Check size={16}/>{message}</div>}{error && <div className="directory-notice error">{error}<button onClick={() => setError('')}>×</button></div>}<div className="directory-list">{loading ? <div className="directory-state"><LoaderCircle className="spin" size={24}/> Ma’lumotlar yuklanmoqda...</div> : filtered.length === 0 ? <div className="directory-state">{query ? 'Qidiruv bo‘yicha ma’lumot topilmadi.' : 'Hozircha ma’lumot mavjud emas.'}</div> : filtered.map(user => { const name = userName(user); const pending = Boolean(user.agent_request_pending); const isAgent = user.role === 'agent'; return <div className={`directory-row ${pending ? 'agent-request-row' : ''}`} key={user.id}><span className="person">{initials(name)}</span><div><strong>{name}</strong><small>{user.phone || user.email || user.username || 'Kontakt kiritilmagan'} · {user.role || 'client'}</small></div><span className={pending ? 'pill pending' : user.is_active === false ? 'pill muted' : 'pill'}>{pending ? 'Agent arizasi' : user.is_active === false ? 'Nofaol' : isAgent ? 'Agent' : 'Faol'}</span><div className="directory-actions">{pending && <button className="approve" disabled={actionId === user.id} onClick={() => void approve(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : <Check size={15}/>} Agentga tasdiqlash</button>}<button className={user.is_active === false ? 'approve secondary-action' : 'row-menu'} disabled={actionId === user.id} onClick={() => void changeUserStatus(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : user.is_active === false ? 'Blokdan chiqarish' : 'Bloklash'}</button></div></div> })}</div></section>
+  const counts = {
+    pending: filtered.filter(user => user.agent_request_pending).length,
+    agents: filtered.filter(user => user.role === 'agent').length,
+    inactive: filtered.filter(user => user.is_active === false).length,
+  }
+  return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>{isUsers ? 'Platformadagi foydalanuvchilar, rollar va agent arizalarini boshqaring.' : 'Agentlar va tasdiqlashni kutayotgan arizalar.'}</p></div></div><div className="filter-row"><button>{isUsers ? 'Barcha rollar' : 'Agentlar'} <ChevronDown size={14}/></button><span>{loading ? 'Yuklanmoqda...' : `${filtered.length} ta natija`}</span></div><div className="directory-summary"><article><small>JAMI FOYDALANUVCHI</small><strong>{filtered.length}</strong></article><article className="agent"><small>AGENTLAR</small><strong>{counts.agents}</strong></article><article className="waiting"><small>ARIZALAR KUTILMOQDA</small><strong>{counts.pending}</strong></article><article className="inactive"><small>NOFAOL</small><strong>{counts.inactive}</strong></article></div>{message && <div className="directory-notice success"><Check size={16}/>{message}</div>}{error && <div className="directory-notice error">{error}<button onClick={() => setError('')}>×</button></div>}<div className="directory-list">{loading ? <div className="directory-state"><LoaderCircle className="spin" size={24}/> Ma’lumotlar yuklanmoqda...</div> : filtered.length === 0 ? <div className="directory-state">{query ? 'Qidiruv bo‘yicha ma’lumot topilmadi.' : 'Hozircha ma’lumot mavjud emas.'}</div> : filtered.map(user => { const name = userName(user); const pending = Boolean(user.agent_request_pending); const isAgent = user.role === 'agent'; const badge = pending ? 'pending' : user.is_active === false ? 'inactive' : isAgent ? 'agent' : 'active'; return <div className={`directory-row ${pending ? 'agent-request-row' : ''}`} key={user.id}><span className="person">{initials(name)}</span><div><strong>{name}</strong><small>{user.phone || user.email || user.username || 'Kontakt kiritilmagan'} · {user.role || 'client'}</small></div><span className={`user-role-badge ${badge}`}>{pending ? 'Agent arizasi' : user.is_active === false ? 'Nofaol' : isAgent ? 'Agent' : 'Faol'}</span><div className="directory-actions">{pending && <button className="approve" disabled={actionId === user.id} onClick={() => void approve(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : <Check size={15}/>} Agentga tasdiqlash</button>}<button className={user.is_active === false ? 'approve secondary-action' : 'row-menu'} disabled={actionId === user.id} onClick={() => void changeUserStatus(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : user.is_active === false ? 'Blokdan chiqarish' : 'Bloklash'}</button></div></div> })}</div></section>
 }
 export default App
 

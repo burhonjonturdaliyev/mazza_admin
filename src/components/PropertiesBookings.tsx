@@ -62,14 +62,16 @@ const msg = (e: unknown) =>
   e instanceof Error ? e.message : "Kutilmagan xatolik yuz berdi.";
 const money = (v: number | string | null) =>
   `${new Intl.NumberFormat("uz-UZ", { maximumFractionDigits: 0 }).format(Number(v ?? 0))} so‘m`;
-const date = (v: string | null) =>
-  v
-    ? new Intl.DateTimeFormat("uz-UZ", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(new Date(`${v}T00:00:00`))
-    : "—";
+const date = (v: string | null) => {
+  if (!v) return "—";
+  const parsed = new Date(`${v.slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  const months = [
+    "yan", "fev", "mar", "apr", "may", "iyun",
+    "iyul", "avg", "sen", "okt", "noy", "dek",
+  ];
+  return `${String(parsed.getDate()).padStart(2, "0")} ${months[parsed.getMonth()]} ${parsed.getFullYear()}`;
+};
 const countdown = (expiresAt?: string | null) => {
   const seconds = Math.max(
     0,
@@ -88,7 +90,7 @@ const mediaUrl = (path?: string | null) =>
 
 export function PropertiesBookings({
   section,
-  token,
+  token: _token,
   query,
 }: {
   section: "properties" | "bookings";
@@ -114,15 +116,17 @@ export function PropertiesBookings({
       const r = await adminFetch(`${API_URL}?section=${section}`),
         d = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(d.detail || "Ma’lumotlarni yuklab bo‘lmadi");
-      section === "properties"
-        ? setProperties(Array.isArray(d.results) ? d.results : [])
-        : setBookings(Array.isArray(d.results) ? d.results : []);
+      if (section === "properties") {
+        setProperties(Array.isArray(d.results) ? d.results : []);
+      } else {
+        setBookings(Array.isArray(d.results) ? d.results : []);
+      }
     } catch (e) {
       setError(msg(e));
     } finally {
       setLoading(false);
     }
-  }, [section, token]);
+  }, [section]);
   useEffect(() => {
     void load();
   }, [load]);
@@ -169,6 +173,26 @@ export function PropertiesBookings({
     }),
     [props],
   );
+  const bookingState = (booking: Booking) => {
+    const raw = booking.status?.toLowerCase() || "";
+    if (booking.is_paid || raw.includes("paid") || raw.includes("to‘langan"))
+      return { label: "To‘langan", tone: "paid" };
+    if (booking.is_active === false || raw.includes("expired"))
+      return { label: "Muddati tugagan", tone: "expired" };
+    if (raw.includes("reject") || raw.includes("cancel") || raw.includes("rad"))
+      return { label: "Rad etilgan", tone: "rejected" };
+    return { label: "To‘lov kutilmoqda", tone: "pending" };
+  };
+  const bookingCounts = useMemo(() => {
+    const counts = { pending: 0, paid: 0, expired: 0 };
+    books.forEach((booking) => {
+      const tone = bookingState(booking).tone;
+      if (tone === "pending") counts.pending += 1;
+      if (tone === "paid") counts.paid += 1;
+      if (tone === "expired" || tone === "rejected") counts.expired += 1;
+    });
+    return counts;
+  }, [books]);
   const images = (p: Property) =>
     [...(p.images || []), ...(p.media || []), p.image].filter(
       (v): v is string => Boolean(v),
@@ -298,6 +322,13 @@ export function PropertiesBookings({
           </div>
         </div>
       )}
+      {section === "bookings" && (
+        <div className="booking-summary">
+          <div className="summary-pending"><small>TO‘LOV KUTILMOQDA</small><strong>{bookingCounts.pending}</strong></div>
+          <div className="summary-paid"><small>TO‘LANGAN</small><strong>{bookingCounts.paid}</strong></div>
+          <div className="summary-expired"><small>MUDDATI TUGAGAN</small><strong>{bookingCounts.expired}</strong></div>
+        </div>
+      )}
       {error && (
         <div className="directory-message error-message">
           <CircleAlert size={19} />
@@ -407,7 +438,9 @@ export function PropertiesBookings({
       {!loading &&
         !error &&
         section === "bookings" &&
-        books.map((b) => (
+        books.map((b) => {
+          const state = bookingState(b);
+          return (
           <article className="platform-row booking-row" key={b.id}>
             <span className="entity-icon booking-icon">
               <CalendarDays size={18} />
@@ -433,16 +466,17 @@ export function PropertiesBookings({
                     : `To‘lov kutilmoqda · ${countdown(b.payment_expires_at)}`}
               </small>
             </div>
-            <span className="pill">{b.status || "Noma’lum"}</span>
-            <span className={b.is_paid ? "payment-mark paid" : "payment-mark"}>
-              {b.is_paid ? (
+            <span className={`booking-status ${state.tone}`}>{state.label}</span>
+            <span className={state.tone === "paid" ? "payment-mark paid" : "payment-mark"}>
+              {state.tone === "paid" ? (
                 <ShieldCheck size={18} />
               ) : (
                 <AlertCircle size={18} />
               )}
             </span>
           </article>
-        ))}
+          );
+        })}
       {!loading &&
         !error &&
         ((section === "properties" && !props.length) ||

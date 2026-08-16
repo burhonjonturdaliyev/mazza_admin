@@ -38,6 +38,20 @@ type AssetDialog = {
   existingIcon?: string | null;
 };
 
+function CatalogIcon({ src, label }: { src?: string | null; label: string }) {
+  const [failed, setFailed] = useState(false);
+  const initial = label.trim().slice(0, 1).toUpperCase() || "•";
+  return (
+    <span className="catalog-item-icon" aria-hidden="true">
+      {src && !failed ? (
+        <img src={src} alt="" onError={() => setFailed(true)} />
+      ) : (
+        <b>{initial}</b>
+      )}
+    </span>
+  );
+}
+
 export function Catalog() {
   const [data, setData] = useState<CatalogData | null>(null);
   const [error, setError] = useState("");
@@ -466,16 +480,12 @@ export function Catalog() {
             {items.length ? (
               items.map((item) => (
                 <p key={item.id}>
-                  {entity === "rule" && item.image ? (
-                    <img
-                      src={categoryIconUrl(item.image)}
-                      alt=""
-                      style={{
-                        width: 24,
-                        height: 24,
-                        objectFit: "cover",
-                        borderRadius: 6,
-                      }}
+                  {entity !== "region" ? (
+                    <CatalogIcon
+                      src={categoryIconUrl(
+                        entity === "category" ? item.icon : item.image,
+                      )}
+                      label={item.name || "K"}
                     />
                   ) : null}
                   <button
@@ -546,18 +556,10 @@ export function Catalog() {
                   className="catalog-name catalog-details"
                   onClick={() => openAssetEdit("policy", item)}
                 >
-                  {item.icon ? (
-                    <img
-                      src={categoryIconUrl(item.icon)}
-                      alt=""
-                      style={{
-                        width: 26,
-                        height: 26,
-                        objectFit: "cover",
-                        borderRadius: 6,
-                      }}
-                    />
-                  ) : null}
+                  <CatalogIcon
+                    src={categoryIconUrl(item.icon)}
+                    label={item.title || "S"}
+                  />
                   {item.title}
                 </button>
                 <button
