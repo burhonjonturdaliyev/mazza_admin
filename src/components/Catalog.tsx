@@ -29,11 +29,13 @@ type CatalogData = {
   banners: any[];
 };
 type AssetDialog = {
+  id?: number;
   entity: "comfortable" | "rule" | "policy";
   name: string;
   description: string;
   type: "success" | "warning" | "danger";
   icon: File | null;
+  existingIcon?: string | null;
 };
 
 export function Catalog() {
@@ -324,7 +326,7 @@ export function Catalog() {
     if (!item) return;
     if (
       !item.name.trim() ||
-      !item.icon ||
+      (!item.icon && !item.existingIcon) ||
       (item.entity === "policy" && !item.description.trim())
     ) {
       setError("Nomi, tavsifi va icon rasmini to‘ldiring.");
@@ -336,16 +338,24 @@ export function Catalog() {
     try {
       const form = new FormData();
       if (item.entity === "policy") {
-        form.append("action", "cancellation_policy_create");
+        form.append(
+          "action",
+          item.id ? "catalog_update" : "cancellation_policy_create",
+        );
+        if (item.id) {
+          form.append("entity", "cancellation_policy");
+          form.append("id", String(item.id));
+        }
         form.append("title", item.name.trim());
         form.append("description", item.description.trim());
         form.append("type", item.type);
-        form.append("icon", item.icon);
+        if (item.icon) form.append("icon", item.icon);
       } else {
-        form.append("action", "catalog_create");
+        form.append("action", item.id ? "catalog_update" : "catalog_create");
         form.append("entity", item.entity);
+        if (item.id) form.append("id", String(item.id));
         form.append("name", item.name.trim());
-        form.append("image", item.icon);
+        if (item.icon) form.append("image", item.icon);
       }
       const r = await adminFetch(API, { method: "POST", body: form });
       const d = await r.json().catch(() => ({}));
@@ -400,6 +410,21 @@ export function Catalog() {
     if (icon.startsWith("http")) return icon;
     return `https://mazzajoy.uz${icon.startsWith("/") ? icon : `/media/${icon}`}`;
   };
+  const openAssetEdit = (
+    entity: "comfortable" | "rule" | "policy",
+    item: any,
+  ) =>
+    setAssetDialog({
+      id: item.id,
+      entity,
+      name: entity === "policy" ? item.title || "" : item.name || "",
+      description: item.description || "",
+      type: ["success", "warning", "danger"].includes(item.type)
+        ? item.type
+        : "warning",
+      icon: null,
+      existingIcon: entity === "policy" ? item.icon : item.image,
+    });
   return (
     <section className="panel directory">
       <input
@@ -457,10 +482,13 @@ export function Catalog() {
                     type="button"
                     className="catalog-name catalog-details"
                     onClick={() =>
-                      entity === "category" &&
-                      setSelectedCategory(item as Category)
+                      entity === "category"
+                        ? setSelectedCategory(item as Category)
+                        : entity === "comfortable" || entity === "rule"
+                          ? openAssetEdit(entity, item)
+                          : undefined
                     }
-                    disabled={entity !== "category"}
+                    disabled={entity === "region"}
                   >
                     {item.name}
                   </button>
@@ -513,7 +541,11 @@ export function Catalog() {
           {(data.cancellation_policies || []).length ? (
             (data.cancellation_policies || []).map((item) => (
               <p key={item.id}>
-                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  type="button"
+                  className="catalog-name catalog-details"
+                  onClick={() => openAssetEdit("policy", item)}
+                >
                   {item.icon ? (
                     <img
                       src={categoryIconUrl(item.icon)}
@@ -527,7 +559,7 @@ export function Catalog() {
                     />
                   ) : null}
                   {item.title}
-                </span>
+                </button>
                 <button
                   onClick={() => void remove("cancellation_policy", item.id)}
                   disabled={!!busy}
@@ -700,10 +732,16 @@ export function Catalog() {
               <div>
                 <h2>
                   {assetDialog.entity === "policy"
-                    ? "Bekor qilish siyosati"
+                    ? assetDialog.id
+                      ? "Bekor qilish siyosatini tahrirlash"
+                      : "Bekor qilish siyosati"
                     : assetDialog.entity === "rule"
-                      ? "Yangi qoida"
-                      : "Yangi qulaylik"}
+                      ? assetDialog.id
+                        ? "Qoidani tahrirlash"
+                        : "Yangi qoida"
+                      : assetDialog.id
+                        ? "Qulaylikni tahrirlash"
+                        : "Yangi qulaylik"}
                 </h2>
                 <p>Ilovada ko‘rinishi uchun icon rasmi majburiy.</p>
               </div>
@@ -766,6 +804,14 @@ export function Catalog() {
             )}
             <label>
               Icon rasmi
+              {!assetDialog.icon && assetDialog.existingIcon ? (
+                <img
+                  className="category-preview-image"
+                  style={{ height: 120 }}
+                  src={categoryIconUrl(assetDialog.existingIcon)}
+                  alt="Joriy icon"
+                />
+              ) : null}
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
