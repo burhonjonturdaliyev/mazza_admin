@@ -51,6 +51,8 @@ type Booking = {
   status: string;
   payment: number | string | null;
   is_paid: boolean;
+  is_active?: boolean;
+  payment_expires_at?: string | null;
   date_access: string | null;
   date_exit: string | null;
   user__phone: string | null;
@@ -68,6 +70,15 @@ const date = (v: string | null) =>
         year: "numeric",
       }).format(new Date(`${v}T00:00:00`))
     : "—";
+const countdown = (expiresAt?: string | null) => {
+  const seconds = Math.max(
+    0,
+    Math.floor((new Date(expiresAt || 0).getTime() - Date.now()) / 1000),
+  );
+  return seconds
+    ? `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")} qoldi`
+    : "To‘lov vaqti tugagan";
+};
 const mediaUrl = (path?: string | null) =>
   !path
     ? ""
@@ -91,6 +102,11 @@ export function PropertiesBookings({
     [busy, setBusy] = useState<number | null>(null),
     [selected, setSelected] = useState<Property | null>(null),
     [reason, setReason] = useState("");
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((value) => value + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -380,7 +396,13 @@ export function PropertiesBookings({
             </div>
             <div className="booking-payment">
               <strong>{money(b.payment)}</strong>
-              <small>{b.is_paid ? "To‘langan" : "To‘lov kutilmoqda"}</small>
+              <small>
+                {b.is_paid
+                  ? "To‘langan"
+                  : b.is_active === false
+                    ? "To‘lov vaqti tugagan"
+                    : `To‘lov kutilmoqda · ${countdown(b.payment_expires_at)}`}
+              </small>
             </div>
             <span className="pill">{b.status || "Noma’lum"}</span>
             <span className={b.is_paid ? "payment-mark paid" : "payment-mark"}>
