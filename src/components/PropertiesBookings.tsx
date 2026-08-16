@@ -145,6 +145,30 @@ export function PropertiesBookings({
         ),
       [bookings, needle],
     );
+  const moderation = (p: Property) => {
+    const value = p.moderation_status?.toLowerCase();
+    if (value === "pending_delete")
+      return { label: "O‘chirish so‘rovi", tone: "delete" };
+    if (
+      ["pending", "submitted", "review"].includes(value || "") ||
+      (!p.is_active && value !== "rejected")
+    )
+      return { label: "Admin tasdig‘i kutilmoqda", tone: "pending" };
+    if (value === "rejected" || !p.is_active)
+      return { label: "Rad etilgan", tone: "rejected" };
+    return { label: "Tasdiqlangan", tone: "approved" };
+  };
+  const moderationCounts = useMemo(
+    () => ({
+      pending: props.filter(
+        (p) =>
+          moderation(p).tone === "pending" || moderation(p).tone === "delete",
+      ).length,
+      approved: props.filter((p) => moderation(p).tone === "approved").length,
+      rejected: props.filter((p) => moderation(p).tone === "rejected").length,
+    }),
+    [props],
+  );
   const images = (p: Property) =>
     [...(p.images || []), ...(p.media || []), p.image].filter(
       (v): v is string => Boolean(v),
@@ -258,6 +282,22 @@ export function PropertiesBookings({
             : `${section === "properties" ? props.length : books.length} ta natija`}
         </span>
       </div>
+      {section === "properties" && (
+        <div className="moderation-summary">
+          <div>
+            <small>ADMIN JAVOBINI KUTMOQDA</small>
+            <strong>{moderationCounts.pending}</strong>
+          </div>
+          <div>
+            <small>TASDIQLANGAN</small>
+            <strong>{moderationCounts.approved}</strong>
+          </div>
+          <div className="rejected">
+            <small>RAD ETILGAN</small>
+            <strong>{moderationCounts.rejected}</strong>
+          </div>
+        </div>
+      )}
       {error && (
         <div className="directory-message error-message">
           <CircleAlert size={19} />
@@ -273,12 +313,13 @@ export function PropertiesBookings({
         !error &&
         section === "properties" &&
         props.map((p) => {
-          const pending = ["pending", "submitted", "review"].includes(
-            p.moderation_status?.toLowerCase() ||
-              (!p.is_active ? "pending" : "approved"),
-          );
+          const state = moderation(p);
+          const pending = state.tone === "pending" || state.tone === "delete";
           return (
-            <article className="platform-row property-row" key={p.id}>
+            <article
+              className={`platform-row property-row moderation-${state.tone}`}
+              key={p.id}
+            >
               <span className="entity-icon property-icon">
                 <MapPin size={18} />
               </span>
@@ -294,20 +335,8 @@ export function PropertiesBookings({
                 {p.user__phone || "—"}
               </div>
               <div className="entity-rating">★ {p.rating ?? "—"}</div>
-              <span
-                className={
-                  pending
-                    ? "pill pending"
-                    : p.is_active
-                      ? "pill"
-                      : "pill stopped"
-                }
-              >
-                {pending
-                  ? "Tekshiruvda"
-                  : p.is_active
-                    ? "Tasdiqlangan"
-                    : "Rad etilgan"}
+              <span className={`moderation-pill ${state.tone}`}>
+                {state.label}
               </span>
               <div className="visibility-actions">
                 <button
