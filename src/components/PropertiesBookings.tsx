@@ -153,6 +153,8 @@ export function PropertiesBookings({
     const value = p.moderation_status?.toLowerCase();
     if (value === "pending_delete")
       return { label: "O‘chirish so‘rovi", tone: "delete" };
+    if (["pending_update", "pending_edit"].includes(value || ""))
+      return { label: "Tahrirlash so‘rovi", tone: "update" };
     if (
       ["pending", "submitted", "review"].includes(value || "") ||
       (!p.is_active && value !== "rejected")
@@ -232,17 +234,21 @@ export function PropertiesBookings({
         p.id,
       )
     ) {
-      setProperties((old) =>
-        old.map((x) =>
-          x.id === p.id
-            ? {
-                ...x,
-                is_active: decision === "approved",
-                moderation_status: decision,
-              }
-            : x,
-        ),
-      );
+      if (p.moderation_status === "pending_delete" && decision === "approved") {
+        setProperties((old) => old.filter((x) => x.id !== p.id));
+      } else {
+        setProperties((old) =>
+          old.map((x) =>
+            x.id === p.id
+              ? {
+                  ...x,
+                  is_active: decision === "approved",
+                  moderation_status: decision,
+                }
+              : x,
+          ),
+        );
+      }
       setSelected(null);
       setReason("");
     }
@@ -499,7 +505,13 @@ export function PropertiesBookings({
           >
             <div className="review-title">
               <div>
-                <p className="eyebrow">E’LON MODERATSIYASI</p>
+                <p className="eyebrow">
+                  {moderation(selected).tone === "delete"
+                    ? "O‘CHIRISH SO‘ROVI"
+                    : moderation(selected).tone === "update"
+                      ? "TAHRIRLASH SO‘ROVI"
+                      : "E’LON MODERATSIYASI"}
+                </p>
                 <h2>{selected.name}</h2>
                 <small>
                   #{selected.id} ·{" "}
@@ -609,14 +621,24 @@ export function PropertiesBookings({
                 disabled={busy === selected.id}
                 onClick={() => void review(selected, "rejected")}
               >
-                <X size={16} /> Rad etish
+                <X size={16} />
+                {moderation(selected).tone === "delete"
+                  ? "O‘chirishni rad etish"
+                  : moderation(selected).tone === "update"
+                    ? "Tahrirni rad etish"
+                    : "Rad etish"}
               </button>
               <button
                 className="approve-review"
                 disabled={busy === selected.id}
                 onClick={() => void review(selected, "approved")}
               >
-                <Check size={16} /> Tasdiqlab nashr qilish
+                <Check size={16} />
+                {moderation(selected).tone === "delete"
+                  ? "O‘chirishni tasdiqlash"
+                  : moderation(selected).tone === "update"
+                    ? "Yangilanishni tasdiqlash"
+                    : "Tasdiqlab nashr qilish"}
               </button>
             </div>
           </section>
