@@ -45,6 +45,15 @@ type Property = {
   images?: string[];
   image?: string | null;
   media?: string[];
+  pending_changes?: Record<string, unknown>;
+  room_reviews?: RoomReview[];
+};
+type RoomReview = {
+  id: number;
+  name: string;
+  price: number | string;
+  moderation_status: "pending" | "pending_delete";
+  pending_changes?: Record<string, unknown>;
 };
 type Booking = {
   id: number;
@@ -168,7 +177,10 @@ export function PropertiesBookings({
     () => ({
       pending: props.filter(
         (p) =>
-          moderation(p).tone === "pending" || moderation(p).tone === "delete",
+          moderation(p).tone === "pending" ||
+          moderation(p).tone === "delete" ||
+          moderation(p).tone === "update" ||
+          Boolean(p.room_reviews?.length),
       ).length,
       approved: props.filter((p) => moderation(p).tone === "approved").length,
       rejected: props.filter((p) => moderation(p).tone === "rejected").length,
@@ -251,6 +263,30 @@ export function PropertiesBookings({
       }
       setSelected(null);
       setReason("");
+    }
+  }
+  async function reviewRoom(
+    room: RoomReview,
+    decision: "approved" | "rejected",
+  ) {
+    if (decision === "rejected" && !reason.trim()) {
+      setError("Rad etish sababini kiriting.");
+      return;
+    }
+    if (
+      await action(
+        {
+          action: "review_property_item",
+          property_item_id: room.id,
+          decision,
+          reason: reason.trim(),
+        },
+        room.id,
+      )
+    ) {
+      setSelected(null);
+      setReason("");
+      void load();
     }
   }
   async function visibility(
@@ -375,6 +411,11 @@ export function PropertiesBookings({
               <span className={`moderation-pill ${state.tone}`}>
                 {state.label}
               </span>
+              {!!p.room_reviews?.length && (
+                <span className="room-review-chip">
+                  {p.room_reviews.length} ta xona so‘rovi
+                </span>
+              )}
               <div className="visibility-actions">
                 <button
                   className="status-action details-action"
@@ -573,6 +614,65 @@ export function PropertiesBookings({
                   />
                 )}
               </div>
+              {!!selected.room_reviews?.length && (
+                <section className="room-review-list">
+                  <div className="room-review-heading">
+                    <div>
+                      <small>ADMIN TASDIG‘I KUTILMOQDA</small>
+                      <h3>Xona o‘zgarishlari</h3>
+                    </div>
+                    <span>{selected.room_reviews.length} ta so‘rov</span>
+                  </div>
+                  {selected.room_reviews.map((room) => {
+                    const changes = Object.entries(room.pending_changes || {})
+                      .filter(([key]) => key !== "existing")
+                      .map(([key, value]) => [roomFieldLabel(key), value] as const);
+                    const isDelete = room.moderation_status === "pending_delete";
+                    const isNew = room.pending_changes?.existing === false;
+                    return (
+                      <article className="room-review-card" key={room.id}>
+                        <div className="room-review-card-title">
+                          <div>
+                            <strong>{room.name}</strong>
+                            <small>#{room.id} · {money(room.price)}</small>
+                          </div>
+                          <span className={isDelete ? "room-state delete" : "room-state"}>
+                            {isDelete ? "O‘chirish" : isNew ? "Yangi xona" : "Tahrirlash"}
+                          </span>
+                        </div>
+                        {!isDelete && !isNew && changes.length > 0 && (
+                          <div className="room-change-grid">
+                            {changes.map(([label, value]) => (
+                              <div key={label}>
+                                <small>{label}</small>
+                                <strong>{formatChangeValue(value)}</strong>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {isNew && <p>Yangi xona nashr qilinishini kutmoqda.</p>}
+                        {isDelete && <p>Agent ushbu xonani o‘chirishni so‘radi.</p>}
+                        <div className="room-review-actions">
+                          <button
+                            className="reject-review"
+                            disabled={busy === room.id}
+                            onClick={() => void reviewRoom(room, "rejected")}
+                          >
+                            <X size={15} /> Rad etish
+                          </button>
+                          <button
+                            className="approve-review"
+                            disabled={busy === room.id}
+                            onClick={() => void reviewRoom(room, "approved")}
+                          >
+                            <Check size={15} /> {isDelete ? "O‘chirishni tasdiqlash" : "Tasdiqlash"}
+                          </button>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </section>
+              )}
               {selected.info && (
                 <div className="review-description">
                   <strong>Tavsif</strong>
@@ -654,6 +754,21 @@ function Info({ label, value }: { label: string; value?: string | null }) {
       <strong>{value || "Kiritilmagan"}</strong>
     </div>
   );
+}
+function roomFieldLabel(field: string) {
+  const labels: Record<string, string> = {
+    name: "Nomi", price: "Narxi", price_discount: "Chegirma narxi",
+    minimum_payment: "Minimal to‘lov", info: "Tavsifi", room_count: "Xonalar soni",
+    adults_capacity: "Kattalar", children_capacity: "Bolalar", area_sqm: "Maydoni",
+    is_discount: "Chegirma", is_active: "Faolligi", comfortable: "Qulayliklar",
+    access_times: "Check-in / check-out", rules: "Qoidalar", sum: "Valyuta",
+  };
+  return labels[field] || field;
+}
+function formatChangeValue(value: unknown) {
+  if (Array.isArray(value)) return value.length ? value.map((id) => `#${id}`).join(", ") : "Tozalangan";
+  if (typeof value === "boolean") return value ? "Ha" : "Yo‘q";
+  return String(value ?? "—");
 }
 function LoadingRows() {
   return (
