@@ -96,6 +96,22 @@ const mediaUrl = (path?: string | null) =>
     : /^https?:\/\//.test(path)
       ? path
       : `${MEDIA_URL}${path.replace(/^\//, "")}`;
+const propertyFieldLabel = (field: string) =>
+  ({
+    name: "Nomi", info: "Tavsif", address: "Manzil", price: "Narx",
+    phone: "Aloqa telefoni", phone_message: "Xabar telefoni", stir: "STIR",
+    shot_number: "Shot raqami", cadastor_number: "Kadastr raqami",
+    region_id: "Hudud", category_id: "Kategoriya", lat: "Kenglik", lon: "Uzunlik",
+    tags: "Teglar", cancellation_policy: "Bekor qilish siyosati",
+    comfortable: "Qulayliklar", is_items_null: "Xona turi", is_property_owner: "Mulk egasi",
+    property_owner_phone: "Mulk egasi telefoni", image: "Muqova rasmi", images: "Mulk rasmlari",
+  } as Record<string, string>)[field] || field;
+const propertyChangeValue = (value: unknown) => {
+  if (typeof value === "boolean") return value ? "Ha" : "Yo‘q";
+  if (Array.isArray(value)) return value.length ? value.join(", ") : "—";
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+};
 
 export function PropertiesBookings({
   section,
@@ -614,6 +630,27 @@ export function PropertiesBookings({
                   />
                 )}
               </div>
+              {moderation(selected).tone === "update" && (
+                <section className="room-review-list property-change-list">
+                  <div className="room-review-heading">
+                    <div>
+                      <small>ADMIN TASDIG‘I KUTILMOQDA</small>
+                      <h3>So‘ralgan mulk o‘zgarishlari</h3>
+                    </div>
+                    <span>{Object.keys(selected.pending_changes || {}).length} ta maydon</span>
+                  </div>
+                  {Object.entries(selected.pending_changes || {}).length ? (
+                    <div className="room-change-grid property-change-grid">
+                      {Object.entries(selected.pending_changes || {}).map(([field, value]) => (
+                        <div key={field}>
+                          <small>{propertyFieldLabel(field)}</small>
+                          <strong>{propertyChangeValue(value)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  ) : <p>Agent tahrir so‘rovi yuborgan, ammo o‘zgargan maydonlar kelmadi.</p>}
+                </section>
+              )}
               {!!selected.room_reviews?.length && (
                 <section className="room-review-list">
                   <div className="room-review-heading">
