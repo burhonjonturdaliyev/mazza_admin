@@ -581,12 +581,26 @@ export function PropertiesBookings({
                   #{selected.id} ·{" "}
                   {selected.user__first_name || selected.user__phone || "Agent"}
                 </small>
+                <div className="review-meta-line">
+                  <span className={`review-status ${moderation(selected).tone}`}>
+                    {moderation(selected).label}
+                  </span>
+                  {selected.category__name && <span>{selected.category__name}</span>}
+                  {selected.region__name && <span>{selected.region__name}</span>}
+                </div>
               </div>
               <button className="modal-close" onClick={() => setSelected(null)}>
                 <X size={19} />
               </button>
             </div>
             <div className="review-content">
+              <div className="review-section-heading">
+                <div>
+                  <span>ELON KO‘RINISHI</span>
+                  <h3>Rasmlar va qisqacha ma’lumot</h3>
+                </div>
+                {selected.rating != null && <b>★ {Number(selected.rating).toFixed(1)}</b>}
+              </div>
               <div className="review-media">
                 {images(selected).length ? (
                   images(selected)
@@ -610,6 +624,12 @@ export function PropertiesBookings({
                     <span>Rasmlar biriktirilmagan</span>
                   </div>
                 )}
+              </div>
+              <div className="review-section-heading compact">
+                <div>
+                  <span>ASOSIY MA’LUMOTLAR</span>
+                  <h3>Mulk tafsilotlari</h3>
+                </div>
               </div>
               <div className="review-grid">
                 <Info label="Kategoriya" value={selected.category__name} />
@@ -723,8 +743,14 @@ export function PropertiesBookings({
                   <p>{selected.info}</p>
                 </div>
               )}
+              <div className="review-section-heading compact documents-heading">
+                <div>
+                  <span>TEKSHIRUV</span>
+                  <h3>Hujjatlar</h3>
+                </div>
+                <small>Faylni ochish uchun ustiga bosing</small>
+              </div>
               <div className="review-documents">
-                <strong>Biriktirilgan fayllar</strong>
                 {(
                   [
                     ["ID / Pasport", selected.id_passport],
