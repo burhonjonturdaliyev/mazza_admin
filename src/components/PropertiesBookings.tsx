@@ -117,10 +117,14 @@ export function PropertiesBookings({
   section,
   token: _token,
   query,
+  dateFrom = '',
+  dateTo = '',
 }: {
   section: "properties" | "bookings";
   token: string;
   query: string;
+  dateFrom?: string;
+  dateTo?: string;
 }) {
   const [properties, setProperties] = useState<Property[]>([]),
     [bookings, setBookings] = useState<Booking[]>([]),
@@ -138,7 +142,10 @@ export function PropertiesBookings({
     setLoading(true);
     setError("");
     try {
-      const r = await adminFetch(`${API_URL}?section=${section}`),
+    const params = new URLSearchParams({ section });
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    const r = await adminFetch(`${API_URL}?${params.toString()}`),
         d = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(d.detail || "Ma’lumotlarni yuklab bo‘lmadi");
       if (section === "properties") {
@@ -151,7 +158,7 @@ export function PropertiesBookings({
     } finally {
       setLoading(false);
     }
-  }, [section]);
+  }, [section, dateFrom, dateTo]);
   useEffect(() => {
     void load();
   }, [load]);

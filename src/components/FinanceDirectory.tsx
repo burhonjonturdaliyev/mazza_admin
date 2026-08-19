@@ -21,7 +21,7 @@ function label(kind: string) {
 }
 function person(row: { user__first_name?: string; user__phone?: string }) { return row.user__first_name || row.user__phone || 'Noma’lum foydalanuvchi' }
 
-export function FinanceDirectory({ view, token: _token, query, onPendingChange }: { view: FinanceView; token: string; query: string; onPendingChange?: (count: number) => void }) {
+export function FinanceDirectory({ view, token: _token, query, dateFrom = '', dateTo = '', onPendingChange }: { view: FinanceView; token: string; query: string; dateFrom?: string; dateTo?: string; onPendingChange?: (count: number) => void }) {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [balances, setBalances] = useState<Balance[]>([])
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([])
@@ -32,14 +32,17 @@ export function FinanceDirectory({ view, token: _token, query, onPendingChange }
   const [notice, setNotice] = useState('')
 
   const request = useCallback(async (section: string, init?: RequestInit) => {
-    const response = await adminFetch(`${API}?section=${section}`, {
+    const params = new URLSearchParams({ section });
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    const response = await adminFetch(`${API}?${params.toString()}`, {
       ...init,
       headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     })
     const body = await response.json().catch(() => ({}))
     if (!response.ok) throw new Error(body.detail || 'Serverdan ma’lumot olib bo‘lmadi')
     return body
-  }, [])
+  }, [dateFrom, dateTo])
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
@@ -56,7 +59,7 @@ export function FinanceDirectory({ view, token: _token, query, onPendingChange }
       }
     } catch (err) { setError(err instanceof Error ? err.message : 'Kutilmagan xatolik') }
     finally { setLoading(false) }
-  }, [onPendingChange, request, view])
+  }, [dateFrom, dateTo, onPendingChange, request, view])
 
   useEffect(() => { void load() }, [load])
 

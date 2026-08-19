@@ -27,6 +27,22 @@ function App() {
   const [view, setView] = useState<View>('Dashboard')
   const [query, setQuery] = useState('')
   const [withdrawals, setWithdrawals] = useState(0)
+  const [range, setRange] = useState('30')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const rangeParams = useMemo(() => {
+    const params = new URLSearchParams()
+    if (range === 'custom') {
+      if (customFrom) params.set('date_from', customFrom)
+      if (customTo) params.set('date_to', customTo)
+    } else if (range !== 'all') {
+      const from = new Date()
+      from.setDate(from.getDate() - Number(range))
+      params.set('date_from', from.toISOString().slice(0, 10))
+      params.set('date_to', new Date().toISOString().slice(0, 10))
+    }
+    return params
+  }, [range, customFrom, customTo])
   const title = useMemo(() => view === 'Dashboard' ? 'Xush kelibsiz, Burhonjon' : view, [view])
   const logout = () => {
     localStorage.removeItem('mazza_admin_token')
@@ -41,7 +57,7 @@ function App() {
   }, [])
   useEffect(() => {
     if (!token) return
-    adminFetch('https://mazzajoy.uz/api/v1/admin/platform/?section=dashboard')
+    adminFetch(`https://mazzajoy.uz/api/v1/admin/platform/?section=dashboard&${rangeParams.toString()}`)
       .then(response => response.ok ? response.json() : Promise.reject())
       .then(data => {
         setDashboard(data)
@@ -51,7 +67,7 @@ function App() {
         setDashboard(null)
         setWithdrawals(0)
       })
-  }, [token])
+  }, [token, rangeParams])
   if (!token) return <Login onSuccess={setToken}/>
   return <div className="app-shell">
     <aside className="sidebar">
@@ -62,8 +78,8 @@ function App() {
     </aside>
     <main>
       <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><button className="logout-button" onClick={logout} title="Admin paneldan chiqish"><LogOut size={17}/><span>Chiqish</span></button></div></header>
-      <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><button className="range">Oxirgi 30 kun <ChevronDown size={15}/></button></section>
-      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Bildirishnomalar' ? <Notifications query={query}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token}/>}
+      <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><select className="range" value={range} onChange={e => setRange(e.target.value)}><option value="7">Oxirgi 7 kun</option><option value="30">Oxirgi 30 kun</option><option value="90">Oxirgi 90 kun</option><option value="all">Barcha vaqt</option><option value="custom">Sana oralig‘i</option></select>{range === 'custom' && <><input className="range-date" type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}/><input className="range-date" type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}/></>}</section>
+      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Bildirishnomalar' ? <Notifications query={query}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} dateFrom={rangeParams.get('date_from') || ''} dateTo={rangeParams.get('date_to') || ''} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token} rangeParams={rangeParams}/>} 
     </main>
   </div>
 }
@@ -110,7 +126,7 @@ const getRows = (payload: unknown): PlatformUser[] => {
 const userName = (user: PlatformUser) => user.full_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || `User #${user.id}`
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
 
-function Directory({view,query,token}:{view:View,query:string,token:string}) {
+function Directory({view,query,token,rangeParams}:{view:View,query:string,token:string,rangeParams:URLSearchParams}) {
   const isUsers = view === 'Foydalanuvchilar'
   const isRequests = view === 'Agent arizalari'
   const [rows, setRows] = useState<PlatformUser[]>([])
@@ -169,7 +185,7 @@ function Directory({view,query,token}:{view:View,query:string,token:string}) {
     finally { setActionId(null) }
   }
 
-  if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query}/>
+  if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query} dateFrom={rangeParams.get('date_from') || ''} dateTo={rangeParams.get('date_to') || ''}/>
   if (!isUsers && view !== 'Agentlar' && !isRequests) return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>Bu bo‘lim hozir yuklanmoqda.</p></div></div></section>
   const counts = {
     pending: filtered.filter(user => user.agent_request_pending).length,
