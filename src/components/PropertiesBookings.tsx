@@ -64,12 +64,29 @@ type Booking = {
   payment_expires_at?: string | null;
   date_access: string | null;
   date_exit: string | null;
+  created_at?: string | null;
+  user__id?: number | null;
+  user__first_name?: string | null;
+  user__username?: string | null;
   user__phone: string | null;
+  phone_number?: string | null;
+  note?: string | null;
+  item__id?: number | null;
+  item__name?: string | null;
+  item__price?: number | string | null;
+  item__price_discount?: number | string | null;
+  item__is_discount?: boolean;
+  item__total_price?: number | string | null;
+  item__property__id?: number | null;
   item__property__name: string | null;
+  item__property__address?: string | null;
+  item__property__category?: string | null;
+  access_times__access?: string | null;
+  access_times__exit?: string | null;
 };
 const msg = (e: unknown) =>
   e instanceof Error ? e.message : "Kutilmagan xatolik yuz berdi.";
-const money = (v: number | string | null) =>
+const money = (v: number | string | null | undefined) =>
   `${new Intl.NumberFormat("uz-UZ", { maximumFractionDigits: 0 }).format(Number(v ?? 0))} so‘m`;
 const date = (v: string | null) => {
   if (!v) return "—";
@@ -132,6 +149,7 @@ export function PropertiesBookings({
     [error, setError] = useState(""),
     [busy, setBusy] = useState<number | null>(null),
     [selected, setSelected] = useState<Property | null>(null),
+    [selectedBooking, setSelectedBooking] = useState<Booking | null>(null),
     [reason, setReason] = useState("");
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -511,7 +529,19 @@ export function PropertiesBookings({
         books.map((b) => {
           const state = bookingState(b);
           return (
-          <article className="platform-row booking-row" key={b.id}>
+          <article
+            className="platform-row booking-row booking-row-clickable"
+            key={b.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => setSelectedBooking(b)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedBooking(b);
+              }
+            }}
+          >
             <span className="entity-icon booking-icon">
               <CalendarDays size={18} />
             </span>
@@ -544,6 +574,7 @@ export function PropertiesBookings({
                 <AlertCircle size={18} />
               )}
             </span>
+            <ChevronRight className="booking-open-icon" size={18} />
           </article>
           );
         })}
@@ -814,8 +845,133 @@ export function PropertiesBookings({
           </section>
         </div>
       )}
+      {selectedBooking && (
+        <BookingDetailModal
+          booking={selectedBooking}
+          onClose={() => setSelectedBooking(null)}
+        />
+      )}
     </section>
   );
+}
+
+function BookingDetailModal({
+  booking,
+  onClose,
+}: {
+  booking: Booking;
+  onClose: () => void;
+}) {
+  const raw = booking.status?.toLowerCase() || "";
+  const isPaid = booking.is_paid || raw.includes("paid") || raw.includes("to‘langan");
+  const isExpired = booking.is_active === false || raw.includes("expired");
+  const isRejected = raw.includes("reject") || raw.includes("cancel") || raw.includes("rad");
+  const status = isPaid
+    ? { label: "To‘langan", tone: "paid" }
+    : isExpired
+      ? { label: "Muddati tugagan", tone: "expired" }
+      : isRejected
+        ? { label: "Bekor qilingan", tone: "rejected" }
+        : { label: "To‘lov kutilmoqda", tone: "pending" };
+  const customer = booking.user__first_name || booking.user__username || "Mijoz";
+  const phone = booking.phone_number || booking.user__phone || "Kiritilmagan";
+  const room = booking.item__name || "Xona ko‘rsatilmagan";
+  const dates = `${date(booking.date_access)} — ${date(booking.date_exit)}`;
+  const paymentDeadline = booking.payment_expires_at
+    ? new Date(booking.payment_expires_at).getTime() > Date.now()
+      ? countdown(booking.payment_expires_at)
+      : "To‘lov vaqti tugagan"
+    : isPaid
+      ? "To‘lov qabul qilingan"
+      : "Muddat belgilanmagan";
+
+  return (
+    <div className="booking-detail-backdrop" onMouseDown={onClose}>
+      <section
+        className="booking-detail-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="booking-detail-title"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="booking-detail-header">
+          <div>
+            <span className="booking-detail-kicker">BRON MA’LUMOTLARI</span>
+            <h2 id="booking-detail-title">Bron #{booking.id}</h2>
+            <p>{booking.item__property__name || "Mulk ko‘rsatilmagan"}</p>
+          </div>
+          <div className="booking-detail-header-actions">
+            <span className={`booking-detail-status ${status.tone}`}>{status.label}</span>
+            <button className="modal-close" onClick={onClose} aria-label="Yopish">
+              <X size={19} />
+            </button>
+          </div>
+        </header>
+        <div className="booking-detail-body">
+          <div className="booking-detail-hero">
+            <div className="booking-detail-property-icon"><CalendarDays size={22} /></div>
+            <div>
+              <strong>{booking.item__property__name || "Mulk ko‘rsatilmagan"}</strong>
+              <span>{booking.item__property__category || "Kategoriya ko‘rsatilmagan"}</span>
+              {booking.item__property__address && <span>{booking.item__property__address}</span>}
+            </div>
+          </div>
+          <div className="booking-detail-section-title"><span>MIJOZ</span><h3>Bron qiluvchi</h3></div>
+          <div className="booking-detail-grid">
+            <BookingInfo icon={<Check size={15} />} label="Ism / username" value={customer} />
+            <BookingInfo icon={<Phone size={15} />} label="Telefon" value={phone} />
+            <BookingInfo icon={<FileText size={15} />} label="Mijoz ID" value={booking.user__id ? `#${booking.user__id}` : "—"} />
+            <BookingInfo icon={<CalendarDays size={15} />} label="Bron yaratilgan" value={formatDateTime(booking.created_at)} />
+          </div>
+          <div className="booking-detail-section-title"><span>BRON TAFSILOTLARI</span><h3>Mulk va tashrif</h3></div>
+          <div className="booking-detail-grid">
+            <BookingInfo icon={<MapPin size={15} />} label="Xona" value={`${room}${booking.item__id ? ` · #${booking.item__id}` : ""}`} />
+            <BookingInfo icon={<CalendarDays size={15} />} label="Sana" value={dates} />
+            <BookingInfo icon={<ChevronRight size={15} />} label="Kirish → chiqish" value={`${booking.access_times__access || "—"} → ${booking.access_times__exit || "—"}`} />
+            <BookingInfo icon={<FileText size={15} />} label="Bron holati" value={booking.status || "—"} />
+          </div>
+          <div className="booking-detail-section-title"><span>TO‘LOV</span><h3>Moliyaviy ma’lumotlar</h3></div>
+          <div className="booking-money-grid">
+            <div><small>Bronning umumiy summasi</small><strong>{money(booking.item__total_price ?? booking.payment)}</strong></div>
+            <div><small>Platforma to‘lovi / bo‘nak</small><strong>{money(booking.payment)}</strong></div>
+            {booking.item__is_discount && <div><small>Chegirmali xona narxi</small><strong>{money(booking.item__price_discount)}</strong><em>Oldingi narx: {money(booking.item__price)}</em></div>}
+          </div>
+          <div className={`booking-payment-deadline ${status.tone}`}>
+            {status.tone === "paid" ? <ShieldCheck size={18} /> : <AlertCircle size={18} />}
+            <span>To‘lov holati: <b>{status.label}</b><small>{paymentDeadline}</small></span>
+          </div>
+          {booking.note && (
+            <div className="booking-note"><span>IZOH</span><p>{booking.note}</p></div>
+          )}
+        </div>
+        <footer className="booking-detail-footer">
+          <span>Bron ID: <b>#{booking.id}</b></span>
+          <button className="approve-review" onClick={onClose}>Yopish</button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function BookingInfo({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return <div className="booking-info"><span>{icon}</span><div><small>{label}</small><strong>{value || "—"}</strong></div></div>;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return new Intl.DateTimeFormat("uz-UZ", {
+    day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit",
+  }).format(parsed);
 }
 function Info({ label, value }: { label: string; value?: string | null }) {
   return (
