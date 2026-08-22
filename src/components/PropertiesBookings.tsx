@@ -136,12 +136,14 @@ export function PropertiesBookings({
   query,
   dateFrom = '',
   dateTo = '',
+  initialPropertyId = null,
 }: {
   section: "properties" | "bookings";
   token: string;
   query: string;
   dateFrom?: string;
   dateTo?: string;
+  initialPropertyId?: number | null;
 }) {
   const [properties, setProperties] = useState<Property[]>([]),
     [bookings, setBookings] = useState<Booking[]>([]),
@@ -167,7 +169,9 @@ export function PropertiesBookings({
         d = await r.json().catch(() => ({}));
       if (!r.ok) throw Error(d.detail || "Ma’lumotlarni yuklab bo‘lmadi");
       if (section === "properties") {
-        setProperties(Array.isArray(d.results) ? d.results : []);
+        const nextProperties = Array.isArray(d.results) ? d.results : [];
+        setProperties(nextProperties);
+        if (initialPropertyId) setSelected(nextProperties.find((property: Property) => property.id === initialPropertyId) || null);
       } else {
         setBookings(Array.isArray(d.results) ? d.results : []);
       }
@@ -176,7 +180,7 @@ export function PropertiesBookings({
     } finally {
       setLoading(false);
     }
-  }, [section, dateFrom, dateTo]);
+  }, [section, dateFrom, dateTo, initialPropertyId]);
   useEffect(() => {
     void load();
   }, [load]);

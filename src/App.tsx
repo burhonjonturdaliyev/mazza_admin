@@ -79,7 +79,7 @@ function App() {
     <main>
       <header><div><p className="eyebrow">{view === 'Dashboard' ? '01 AVGUST, 2026' : 'MAZZA BOSHQARUV TIZIMI'}</p><h1>{title}</h1><p className="subtitle">Platformangizdagi asosiy ko‘rsatkichlar va jarayonlar.</p></div><div className="header-actions"><button className="icon-btn"><Bell size={20}/><i/></button><div className="avatar">BT</div><div className="profile"><strong>Burhonjon</strong><small>Super admin</small></div><button className="logout-button" onClick={logout} title="Admin paneldan chiqish"><LogOut size={17}/><span>Chiqish</span></button></div></header>
       <section className="toolbar"><div className="search"><Search size={18}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Foydalanuvchi, mulk yoki bron qidiring..."/></div><select className="range" value={range} onChange={e => setRange(e.target.value)}><option value="7">Oxirgi 7 kun</option><option value="30">Oxirgi 30 kun</option><option value="90">Oxirgi 90 kun</option><option value="all">Barcha vaqt</option><option value="custom">Sana oralig‘i</option></select>{range === 'custom' && <><input className="range-date" type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}/><input className="range-date" type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}/></>}</section>
-      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Bildirishnomalar' ? <Notifications query={query}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} dateFrom={rangeParams.get('date_from') || ''} dateTo={rangeParams.get('date_to') || ''} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token} rangeParams={rangeParams}/>} 
+      {view === 'Dashboard' ? <Dashboard data={dashboard} setView={setView} withdrawals={withdrawals}/> : view === 'Sozlamalar' ? <Catalog/> : view === 'Bildirishnomalar' ? <Notifications query={query}/> : view === 'Tranzaksiyalar' || view === 'Pul yechish' ? <FinanceDirectory view={view} token={token} query={query} dateFrom={rangeParams.get('date_from') || ''} dateTo={rangeParams.get('date_to') || ''} onPendingChange={setWithdrawals}/> : <Directory view={view} query={query} token={token} rangeParams={rangeParams} setView={setView}/>} 
     </main>
   </div>
 }
@@ -136,7 +136,7 @@ const getRows = (payload: unknown): PlatformUser[] => {
 const userName = (user: PlatformUser) => user.full_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.username || `User #${user.id}`
 const initials = (name: string) => name.split(/\s+/).slice(0, 2).map(part => part[0]).join('').toUpperCase()
 
-function Directory({view,query,token,rangeParams}:{view:View,query:string,token:string,rangeParams:URLSearchParams}) {
+function Directory({view,query,token,rangeParams,setView}:{view:View,query:string,token:string,rangeParams:URLSearchParams,setView:(view:View)=>void}) {
   const isUsers = view === 'Foydalanuvchilar'
   const isRequests = view === 'Agent arizalari'
   const [rows, setRows] = useState<PlatformUser[]>([])
@@ -145,6 +145,7 @@ function Directory({view,query,token,rangeParams}:{view:View,query:string,token:
   const [actionId, setActionId] = useState<PlatformUser['id'] | null>(null)
   const [message, setMessage] = useState('')
   const [selectedAgent, setSelectedAgent] = useState<PlatformUser | null>(null)
+  const [focusPropertyId, setFocusPropertyId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!isUsers && view !== 'Agentlar' && !isRequests) return
@@ -207,18 +208,18 @@ function Directory({view,query,token,rangeParams}:{view:View,query:string,token:
     finally { setActionId(null) }
   }
 
-  if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query} dateFrom={rangeParams.get('date_from') || ''} dateTo={rangeParams.get('date_to') || ''}/>
+  if (view === 'Mulklar' || view === 'Bronlar') return <PropertiesBookings section={view === 'Mulklar' ? 'properties' : 'bookings'} token={token} query={query} dateFrom={rangeParams.get('date_from') || ''} dateTo={rangeParams.get('date_to') || ''} initialPropertyId={focusPropertyId}/>
   if (!isUsers && view !== 'Agentlar' && !isRequests) return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>Bu bo‘lim hozir yuklanmoqda.</p></div></div></section>
   const counts = {
     pending: filtered.filter(user => user.agent_request_pending).length,
     agents: filtered.filter(user => user.role === 'agent').length,
     inactive: filtered.filter(user => user.is_active === false).length,
   }
-  if (selectedAgent) return <AgentDetailsModal agent={selectedAgent} onClose={() => setSelectedAgent(null)} token={token}/>
+  if (selectedAgent) return <AgentDetailsModal agent={selectedAgent} onClose={() => setSelectedAgent(null)} onOpenProperty={(id) => { setFocusPropertyId(id); setSelectedAgent(null); setView('Mulklar') }} token={token}/>
   return <section className="panel directory"><div className="panel-head"><div><h2>{view}</h2><p>{isUsers ? 'Platformadagi foydalanuvchilar, rollar va agent arizalarini boshqaring.' : 'Agentlar va tasdiqlashni kutayotgan arizalar.'}</p></div></div><div className="filter-row"><button>{isUsers ? 'Barcha rollar' : 'Agentlar'} <ChevronDown size={14}/></button><span>{loading ? 'Yuklanmoqda...' : `${filtered.length} ta natija`}</span></div><div className="directory-summary"><article><small>JAMI FOYDALANUVCHI</small><strong>{filtered.length}</strong></article><article className="agent"><small>AGENTLAR</small><strong>{counts.agents}</strong></article><article className="waiting"><small>ARIZALAR KUTILMOQDA</small><strong>{counts.pending}</strong></article><article className="inactive"><small>NOFAOL</small><strong>{counts.inactive}</strong></article></div>{message && <div className="directory-notice success"><Check size={16}/>{message}</div>}{error && <div className="directory-notice error">{error}<button onClick={() => setError('')}>×</button></div>}<div className="directory-list">{loading ? <div className="directory-state"><LoaderCircle className="spin" size={24}/> Ma’lumotlar yuklanmoqda...</div> : filtered.length === 0 ? <div className="directory-state">{query ? 'Qidiruv bo‘yicha ma’lumot topilmadi.' : 'Hozircha ma’lumot mavjud emas.'}</div> : filtered.map(user => { const name = userName(user); const pending = Boolean(user.agent_request_pending); const isAgent = user.role === 'agent'; const badge = pending ? 'pending' : user.is_active === false ? 'inactive' : isAgent ? 'agent' : 'active'; return <div className={`directory-row ${pending ? 'agent-request-row' : ''}`} key={user.id}><span className="person">{initials(name)}</span><div><strong>{name}</strong><small>{user.phone || user.email || user.username || 'Kontakt kiritilmagan'} · {user.role || 'client'}</small></div><span className={`user-role-badge ${badge}`}>{pending ? 'Agent arizasi' : user.is_active === false ? 'Nofaol' : isAgent ? 'Agent' : 'Faol'}</span><div className="directory-actions">{pending && <button className="approve" disabled={actionId === user.id} onClick={() => void approve(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : <Check size={15}/>} Agentga tasdiqlash</button>}<button className={user.is_active === false ? 'approve secondary-action' : 'row-menu'} disabled={actionId === user.id} onClick={() => void changeUserStatus(user)}>{actionId === user.id ? <LoaderCircle className="spin" size={15}/> : user.is_active === false ? 'Blokdan chiqarish' : 'Bloklash'}</button></div></div> })}</div></section>
 }
 
-function AgentDetailsModal({ agent, onClose, token: _token }: { agent: PlatformUser; onClose: () => void; token: string }) {
+function AgentDetailsModal({ agent, onClose, onOpenProperty, token: _token }: { agent: PlatformUser; onClose: () => void; onOpenProperty: (id: number) => void; token: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [details, setDetails] = useState<{ balances: any[]; withdrawals: any[]; transactions: any[]; properties: any[] }>({ balances: [], withdrawals: [], transactions: [], properties: [] })
@@ -233,11 +234,23 @@ function AgentDetailsModal({ agent, onClose, token: _token }: { agent: PlatformU
     }
     void load()
   }, [agent])
+  useEffect(() => {
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('.agent-detail-columns > div:nth-child(2) .agent-detail-row'))
+    rows.forEach((row, index) => {
+      const property = details.properties[index]
+      if (!property) return
+      row.classList.add('agent-property-row')
+      row.onclick = () => onOpenProperty(property.id)
+      if (property.image) row.style.setProperty('--property-image', `url(${propertyMediaUrl(property.image)})`)
+    })
+    return () => rows.forEach(row => { row.onclick = null })
+  }, [details.properties, onOpenProperty])
   const latest = [...details.withdrawals].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 5)
   return <section className="agent-detail-page"><div className="agent-detail-head"><div><p className="eyebrow">AGENT PROFILI</p><h2>{userName(agent)}</h2><p>{agent.phone || agent.email || 'Kontakt kiritilmagan'}</p></div><button className="finance-modal-close" onClick={onClose} aria-label="Yopish"><X size={19}/></button></div>{loading ? <div className="directory-state">Ma’lumotlar yuklanmoqda...</div> : error ? <div className="directory-notice error">{error}</div> : <><div className="agent-detail-cards"><article><small>JORIY BALANS</small><strong>{details.balances.length ? money(details.balances[0].balans ?? details.balances[0].balance) : '0 so‘m'}</strong></article><article><small>PUL YECHISH SO‘ROVLARI</small><strong>{details.withdrawals.length} ta</strong></article><article><small>MULKLAR</small><strong>{details.properties.length} ta</strong></article></div><div className="agent-detail-columns"><div><h3>Pul yechish tarixi</h3>{latest.length ? latest.map(row => <div className="agent-detail-row" key={row.id}><span>{dateText(row.created_at)}</span><b>{money(row.amount)}</b><i>{row.status || '—'}</i></div>) : <p className="agent-empty">Hozircha so‘rovlar yo‘q.</p>}</div><div><h3>Agent mulklari</h3>{details.properties.length ? details.properties.map(row => <div className="agent-detail-row" key={row.id}><span>{row.name || 'Nomsiz mulk'}</span><i>{row.is_active ? 'Faol' : 'Tekshiruvda'}</i></div>) : <p className="agent-empty">Mulklar topilmadi.</p>}</div></div><div className="agent-transaction-note">To‘lov va balans o‘zgarishlari: <b>{details.transactions.length} ta tranzaksiya</b></div></>}</section>
 }
 function money(value: unknown) { return `${new Intl.NumberFormat('uz-UZ', { maximumFractionDigits: 0 }).format(Number(value ?? 0))} so‘m` }
 function dateText(value: string) { return new Intl.DateTimeFormat('uz-UZ', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value)) }
+function propertyMediaUrl(path?: string | null) { return !path ? '' : /^https?:\/\//.test(path) ? path : `https://mazzajoy.uz/media/${path.replace(/^\//, '')}` }
 export default App
 
 function Login({onSuccess}:{onSuccess:(token:string)=>void}) {
