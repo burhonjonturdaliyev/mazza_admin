@@ -157,6 +157,7 @@ function Directory({view,query,token,rangeParams}:{view:View,query:string,token:
     }
     const params = new URLSearchParams({ section: 'users' })
     if (view === 'Agentlar') params.set('role', 'agent')
+    if (isUsers) params.set('role', 'client')
     const pendingParams = new URLSearchParams({ section: 'users' })
     Promise.all(view === 'Agentlar' ? [load(params), load(pendingParams)] : [load(params)])
       .then(([agents, allUsers]) => {
@@ -169,7 +170,7 @@ function Directory({view,query,token,rangeParams}:{view:View,query:string,token:
     return () => controller.abort()
   }, [isRequests, isUsers, token, view])
 
-  const filtered = rows.filter(user => (!isRequests || user.agent_request_pending) && `${userName(user)} ${user.username ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(query.toLowerCase()))
+  const filtered = rows.filter(user => (!isRequests || user.agent_request_pending) && (!isUsers || (!user.agent_request_pending && user.role !== 'agent')) && `${userName(user)} ${user.username ?? ''} ${user.phone ?? ''} ${user.email ?? ''}`.toLowerCase().includes(query.toLowerCase()))
   async function approve(user: PlatformUser) {
     setActionId(user.id); setError(''); setMessage('')
     try {
