@@ -97,17 +97,27 @@ function Dashboard({ data, setView, withdrawals }: {data:Record<string, any>|nul
     item.item__property__name || 'Mulk ko‘rsatilmagan', item.user__phone || '—', `${item.date_access || '—'} — ${item.date_exit || '—'}`, item.status || 'Noma’lum',
   ])
   return <><section className="metrics">
-    <Metric icon={<CircleDollarSign/>} tone="violet" label="Platforma daromadi" value={metrics?.revenue ?? '—'} suffix="so‘m" delta="30 kun"/>
-    <Metric icon={<CalendarDays/>} tone="blue" label="Yangi bronlar" value={metrics?.bookings?.toString() ?? '—'} suffix="ta" delta="30 kun"/>
-    <Metric icon={<Users/>} tone="orange" label="Faol foydalanuvchilar" value={metrics?.active_users?.toString() ?? '—'} suffix="ta" delta="jonli"/>
-    <Metric icon={<Building2/>} tone="green" label="Faol mulklar" value={metrics?.properties?.toString() ?? '—'} suffix="ta" delta="jonli"/>
+    <Metric icon={<CircleDollarSign/>} tone="violet" label="Platforma daromadi" value={metrics?.revenue ?? '—'} suffix="so‘m" delta="30 kun" onClick={() => setView('Tranzaksiyalar')}/>
+    <Metric icon={<CalendarDays/>} tone="blue" label="Yangi bronlar" value={metrics?.bookings?.toString() ?? '—'} suffix="ta" delta="30 kun" onClick={() => setView('Bronlar')}/>
+    <Metric icon={<Users/>} tone="orange" label="Faol foydalanuvchilar" value={metrics?.active_users?.toString() ?? '—'} suffix="ta" delta="jonli" onClick={() => setView('Foydalanuvchilar')}/>
+    <Metric icon={<Building2/>} tone="green" label="Faol mulklar" value={metrics?.properties?.toString() ?? '—'} suffix="ta" delta="jonli" onClick={() => setView('Mulklar')}/>
   </section>
   <section className="grid-two"><div className="panel revenue"><div className="panel-head"><div><h2>Daromadlar tahlili</h2><p>Oxirgi to‘lovlardagi real tushumlar</p></div><button className="link" onClick={()=>setView('Tranzaksiyalar')}>Hisobotni ko‘rish →</button></div><div className="chart-stat"><strong>{money(metrics?.revenue)} <small>so‘m</small></strong><span><TrendingUp size={15}/> Oxirgi 30 kun</span></div><div className="chart"><ResponsiveContainer width="100%" height="100%"><AreaChart data={activity}><defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#7257f5" stopOpacity=".32"/><stop offset="100%" stopColor="#7257f5" stopOpacity="0"/></linearGradient></defs><XAxis dataKey="day" axisLine={false} tickLine={false}/><Tooltip/><Area type="monotone" dataKey="value" stroke="#7257f5" strokeWidth={3} fill="url(#fill)"/></AreaChart></ResponsiveContainer></div></div>
   <div className="panel attention"><div className="panel-head"><div><h2>Diqqat talab qiladi</h2><p>Tezkor boshqaruv markazi</p></div></div><button className="attention-row" onClick={()=>setView('Pul yechish')}><span className="bubble amber"><ArrowDownToLine size={18}/></span><div><strong>{data?.pending?.withdrawals ?? withdrawals} ta pul yechish so‘rovi</strong><small>Tekshiruv va tasdiqlashni kutmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Agent arizalari')}><span className="bubble blue"><ShieldCheck size={18}/></span><div><strong>{data?.pending?.agent_requests ?? 0} ta agent arizasi</strong><small>Tekshiruv va tasdiqlashni kutmoqda</small></div><b>Ko‘rish →</b></button><button className="attention-row" onClick={()=>setView('Mulklar')}><span className="bubble pink"><Building2 size={18}/></span><div><strong>{data?.pending?.inactive_properties ?? 0} ta mulk</strong><small>Moderatsiya navbatida</small></div><b>Ko‘rish →</b></button></div></section>
   <section className="grid-two lower"><DataPanel title="Oxirgi tranzaksiyalar" action="Barchasi" rows={transactionRows} columns={['ID', 'Turi', 'Foydalanuvchi', 'Summa', 'Holat']}/><DataPanel title="Yangi bronlar" action="Kalendar" rows={bookingRows} columns={['Mulk', 'Mijoz', 'Sana', 'Holat']}/></section>
   <section className="panel withdraw"><div><p className="eyebrow">MOLIYAVIY NAZORAT</p><h2>Pul yechish so‘rovlarini tasdiqlang</h2><p>{data?.pending?.withdrawals ?? withdrawals} ta so‘rov ko‘rib chiqishni kutmoqda.</p></div><div><strong>{data?.pending?.withdrawals ?? withdrawals} ta</strong><button onClick={()=>setView('Pul yechish')}>So‘rovlarni ko‘rish</button></div></section></>
 }
-function Metric({icon,tone,label,value,suffix,delta}:{icon:React.ReactNode,tone:string,label:string,value:string,suffix:string,delta:string}) { return <article className="metric"><div className={`metric-icon ${tone}`}>{icon}</div><div><p>{label}</p><strong>{value} <small>{suffix}</small></strong><span><TrendingUp size={13}/> {delta} <em>o‘tgan oyga nisbatan</em></span></div></article> }
+function Metric({icon,tone,label,value,suffix,delta,onClick}:{icon:React.ReactNode,tone:string,label:string,value:string,suffix:string,delta:string,onClick?:()=>void}) {
+  const clickable = Boolean(onClick)
+  const activate = () => onClick?.()
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      activate()
+    }
+  }
+  return <article className={clickable ? 'metric clickable' : 'metric'} onClick={activate} onKeyDown={handleKeyDown} role={clickable ? 'button' : undefined} tabIndex={clickable ? 0 : undefined} aria-label={clickable ? `${label} bo‘limini ochish` : undefined}><div className={`metric-icon ${tone}`}>{icon}</div><div><p>{label}</p><strong>{value} <small>{suffix}</small></strong><span><TrendingUp size={13}/> {delta} <em>o‘tgan oyga nisbatan</em></span></div></article>
+}
 function DataPanel({title,action,rows,columns}:{title:string,action:string,rows:string[][],columns:string[]}) {return <div className="panel data"><div className="panel-head"><div><h2>{title}</h2></div><button className="link">{action} →</button></div><div className="table"><div className="tr th">{columns.map(c=><span key={c}>{c}</span>)}</div>{rows.map(r=><div className="tr" key={r[0]}>{r.map((v,j)=><span key={j} className={j===r.length-1?'status':''}>{j===r.length-1?<i className={v==='Tasdiqlangan'||v==='success'?'ok':v==='waiting'?'wait':'review'}>{v==='success'?'Muvaffaqiyatli':v}</i>:v}</span>)}<button><MoreHorizontal size={18}/></button></div>)}</div></div>}
 type PlatformUser = {
   id: number | string; username?: string; first_name?: string; last_name?: string;
